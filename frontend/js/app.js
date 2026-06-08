@@ -71,27 +71,32 @@ function toast(msg, type = 'success') {
 }
 
 function showConfirm({ title, message, showReason = false, confirmText = '確認', danger = false }) {
+  state._blockNav = true;
   return new Promise(resolve => {
+    const done = (result) => {
+      state._blockNav = false;
+      overlay.remove();
+      resolve(result);
+    };
     const overlay = document.createElement('div');
     overlay.className = 'confirm-overlay';
     overlay.innerHTML = `
       <div class="confirm-card">
-        <h3>\${escHtml(title)}</h3>
-        <p>\${escHtml(message)}</p>
-        \${showReason ? '<textarea id="confirmReason" placeholder="請填寫取消理由..." style="width:100%;min-height:60px;margin-top:10px"></textarea>' : ''}
+        <h3>${escHtml(title)}</h3>
+        <p>${escHtml(message)}</p>
+        ${showReason ? '<textarea id="confirmReason" placeholder="請填寫取消理由..." style="width:100%;min-height:60px;margin-top:10px"></textarea>' : ''}
         <div class="confirm-actions">
           <button class="btn btn-ghost" id="confirmCancel">取消</button>
-          <button class="btn \${danger ? 'btn-danger' : 'btn-primary'}" id="confirmOk">\${escHtml(confirmText)}</button>
+          <button class="btn ${danger ? 'btn-danger' : 'btn-primary'}" id="confirmOk">${escHtml(confirmText)}</button>
         </div>
       </div>`;
     document.body.appendChild(overlay);
-    overlay.querySelector('#confirmCancel').onclick = () => { overlay.remove(); resolve({ confirmed: false }); };
+    overlay.querySelector('#confirmCancel').onclick = () => done({ confirmed: false });
     overlay.querySelector('#confirmOk').onclick = () => {
       const reason = showReason ? overlay.querySelector('#confirmReason')?.value?.trim() : undefined;
-      overlay.remove();
-      resolve({ confirmed: true, reason });
+      done({ confirmed: true, reason });
     };
-    overlay.addEventListener('click', (e) => { if (e.target === overlay) { overlay.remove(); resolve({ confirmed: false }); } });
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) done({ confirmed: false }); });
   });
 }
 
@@ -118,17 +123,32 @@ function matchRoute(hash) {
 }
 
 async function navigate() {
-  const { handler, params } = matchRoute(location.hash);
+  if (state._blockNav && state._lastHash && location.hash !== state._lastHash) {
+    history.replaceState(null, '', state._lastHash);
+    renderNav();
+    const card = document.querySelector('.confirm-card');
+    if (card) {
+      card.classList.add('glow-warn');
+      setTimeout(() => card.classList.remove('glow-warn'), 1000);
+    }
+    return;
+  }
+  state._lastHash = location.hash;
+  cleanupHome();
   const main = document.getElementById('mainContent');
+  main.classList.remove('home-content');
+  const { handler, params } = matchRoute(location.hash);
+  document.body.style.overflow = 'hidden';
+  window.scrollTo(0, 0);
   main.innerHTML = '<div class="loading-state"><div class="loading-spinner"></div></div>';
   try {
     await handler(main, params);
   } catch (e) {
     main.innerHTML = `<div class="alert alert-error">${e.detail || e.message || '載入失敗'}</div>`;
   }
+  document.body.style.overflow = '';
   renderNav();
   initCustomSelects();
-  window.scrollTo(0, 0);
 }
 
 // ─── Navbar ──────────────────────────────────────────────────────
@@ -208,7 +228,7 @@ function escHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;'
 function formatDate(d) { return d ? new Date(d).toLocaleDateString('zh-HK') : ''; }
 function formatDateTime(d) { return d ? new Date(d).toLocaleString('zh-HK') : ''; }
 function tag(s, cls) { return `<span class="tag ${cls || ''}">${escHtml(s)}</span>`; }
-function statusBadge(s) { return `<span class="status-badge status-${s}">${statusLabels[s]}</span>`; }
+function statusBadge(s) { return `<span class="status-badge status-${s}">${statusLabels[s] || s}</span>`; }
 
 let catLabels = {};
 let catOptions = [];
@@ -222,16 +242,17 @@ async function loadCategories() {
   } catch { /* keep defaults */ }
 }
 const modeLabels = { reach_out: '可伸手', swap: '需互換' };
-const statusLabels = { available: '可交換', reserved: '已預留', exchanged: '已交換', pending: '待確認', accepted: '已接受', rejected: '已拒絕', cancelled: '已取消', completed: '已完成' };
-const typeMap = { exchange_request: '交換請求', exchange_accepted: '已接受', exchange_rejected: '已拒絕', exchange_completed: '已完成', cancel_requested: '取消申請', exchange_cancelled: '已取消', cancel_rejected: '取消被拒', new_message: '新訊息', new_review: '新評價', item_deleted: '物品已刪除' };
+const statusLabels = { available: '可交換', reserved: '已預留', exchanged: '已交換', pending: '待確認', accepted: '已接受', rejected: '已拒絕', cancelled: '已取消', cancel_requested: '申請取消中', completed: '已完成' };const typeMap = { exchange_request: '交換請求', exchange_accepted: '已接受', exchange_rejected: '已拒絕', exchange_completed: '已完成', cancel_requested: '取消申請', exchange_cancelled: '已取消', cancel_rejected: '取消被拒', new_message: '新訊息', new_review: '新評價', item_deleted: '物品已刪除' };
 
-function itemCard(item) {
+function itemCard(item, exchangeState) {
   const img = item.images?.length
     ? `<img src="${escHtml(item.images[0])}" alt="" loading="lazy" />`
     : '<div class="no-img">無圖片</div>';
   const statusCls = item.status === 'available' ? 'tag-available' : item.status === 'reserved' ? 'tag-reserved' : 'tag-exchanged';
+  const dimmed = !!exchangeState;
   return `
     <a href="#/items/${item.id}" class="item-card card">
+      ${dimmed ? `<span class="item-card-ex-badge">${statusLabels[exchangeState] || exchangeState}</span>` : ''}
       <div class="item-card-img">${img}</div>
       <div class="item-card-body">
         <div class="item-card-title">${escHtml(item.title)}</div>
@@ -246,10 +267,15 @@ function itemCard(item) {
     </a>`;
 }
 
+const pageHandlers = new Map();
+let pageHandlerId = 0;
+
 function pagination(page, totalPages, onChange) {
   if (totalPages <= 1) return '';
+  const id = ++pageHandlerId;
+  pageHandlers.set(id, onChange);
   return `
-    <div class="pagination">
+    <div class="pagination" data-ph="${id}">
       <button class="btn btn-sm" ${page <= 1 ? 'disabled' : ''} data-page="${page - 1}">上一頁</button>
       <span class="page-info">${page} / ${totalPages}</span>
       <button class="btn btn-sm" ${page >= totalPages ? 'disabled' : ''} data-page="${page + 1}">下一頁</button>
@@ -300,26 +326,339 @@ async function checkAuth() {
   }
 }
 
+// ─── Home cleanup ─────────────────────────────────────────────────
+function cleanupHome() {
+  if (state._countdownInterval) { clearInterval(state._countdownInterval); state._countdownInterval = null; }
+  if (state._particleRAF) { cancelAnimationFrame(state._particleRAF); state._particleRAF = null; }
+  if (state._parallaxHandler) { window.removeEventListener('scroll', state._parallaxHandler); state._parallaxHandler = null; }
+}
+
 // ─── PAGE: Home ──────────────────────────────────────────────────
 async function homePage(el) {
+  cleanupHome();
+  el.classList.add('home-content');
+
   let items = [];
   try { items = (await api('/items/?page_size=8&sort_by=newest')).items; } catch {}
+
   el.innerHTML = `
-    <div class="hero">
-      <h1>ZUTOMAYO <span>無料交換</span></h1>
-      <p>在深夜中，與其他粉絲交換心愛的收藏。<br>ずっと真夜中でいいのに。</p>
-      <div class="hero-actions">
-        <a href="#/items" class="btn btn-primary">瀏覽物品</a>
-        <a href="#/items/new" class="btn btn-secondary">發佈物品</a>
+    <section class="hero-concert" id="main-content">
+      <canvas id="particleCanvas" aria-hidden="true"></canvas>
+      <div class="hero-content">
+        <div class="hero-badge anim-fade-up">ZUTOMAYO ASIA TOUR 2026</div>
+        <h1 class="anim-fade-up">
+          <span class="jp">ずっと真夜中でいいのに。</span>
+          <span class="highlight">LIVE IN HONG KONG</span>
+        </h1>
+        <div class="hero-date anim-fade-up">
+          2026 <span class="divider">·</span> 6 <span class="divider">·</span> 6
+        </div>
+        <div class="hero-venue anim-fade-up">📍 亞洲國際博覽館 Arena · 香港</div>
+        <div class="btn-group anim-fade-up">
+          <a href="https://kktix.com/" target="_blank" rel="noopener noreferrer" class="btn btn-primary">🎫 立即購票</a>
+          <a href="#info" class="btn btn-outline" data-scroll="info">了解更多</a>
+          <button class="btn btn-outline" id="shareBtn" aria-label="分享此頁面">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+            分享
+          </button>
+        </div>
       </div>
-    </div>
-    <section>
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
-        <h2>最新物品</h2>
-        <a href="#/items">查看全部 →</a>
+    </section>
+
+    <div class="page-container">
+      <section class="countdown-section anim-fade-up" aria-label="倒數計時">
+        <h2 class="section-title">距離<span>ZUTOMAYO</span>香港首演還有</h2>
+        <div class="countdown-grid" id="countdown">
+          <div class="countdown-item"><div class="num" id="cd-days">--</div><div class="label">日</div></div>
+          <div class="countdown-item"><div class="num" id="cd-hours">--</div><div class="label">時</div></div>
+          <div class="countdown-item"><div class="num" id="cd-mins">--</div><div class="label">分</div></div>
+          <div class="countdown-item"><div class="num" id="cd-secs">--</div><div class="label">秒</div></div>
+        </div>
+      </section>
+
+      <section class="info-section" id="info" aria-labelledby="heading-concert-info">
+        <h2 class="section-title" id="heading-concert-info">演唱會<span>資訊</span></h2>
+        <div class="info-grid">
+          <div class="info-card card anim-fade-up"><div class="icon">📅</div><h3>日期與時間</h3><p>2026 年 6 月 6 日（星期六）<br>入場 18:00 · 開演 19:00</p></div>
+          <div class="info-card card anim-fade-up"><div class="icon">📍</div><h3>場地</h3><p>亞洲國際博覽館 Arena<br>香港赤鱲角航展道1號</p></div>
+          <div class="info-card card anim-fade-up"><div class="icon">🎫</div><h3>票價</h3><p>HK$ 1,280 / 980 / 680<br>全場劃位坐席</p></div>
+          <div class="info-card card anim-fade-up"><div class="icon">🛒</div><h3>售票平台</h3><p>KKtix<br>2026 年 4 月中旬公開發售</p></div>
+          <div class="info-card card anim-fade-up"><div class="icon">🚇</div><h3>交通</h3><p>機場快線直達博覽館站<br>多條巴士路線途經</p></div>
+          <div class="info-card card anim-fade-up"><div class="icon">⚠️</div><h3>注意事項</h3><p>6 歲以下恕不招待<br>演出期間請勿錄影及拍照</p></div>
+        </div>
+      </section>
+
+      <section class="setlist-section" id="songs" aria-labelledby="heading-songs">
+        <h2 class="section-title" id="heading-songs">人氣<span>曲目</span></h2>
+        <div class="setlist-grid">
+          <div class="setlist-item card anim-fade-up"><div class="num">01</div><div class="title">勘ぐれい<small>Kangurei</small></div></div>
+          <div class="setlist-item card anim-fade-up"><div class="num">02</div><div class="title">秒針を噛む<small>Byoushin wo Kamu</small></div></div>
+          <div class="setlist-item card anim-fade-up"><div class="num">03</div><div class="title">正しくなれない<small>Tadashikunarenai</small></div></div>
+          <div class="setlist-item card anim-fade-up"><div class="num">04</div><div class="title">暗く黒く<small>Kuraku Kuroku</small></div></div>
+          <div class="setlist-item card anim-fade-up"><div class="num">05</div><div class="title">残機<small>Zanki</small></div></div>
+          <div class="setlist-item card anim-fade-up"><div class="num">06</div><div class="title">嘘じゃない<small>Uso Janai</small></div></div>
+          <div class="setlist-item card anim-fade-up"><div class="num">07</div><div class="title">綺羅キラー<small>Kira Killer</small></div></div>
+          <div class="setlist-item card anim-fade-up"><div class="num">08</div><div class="title">不法侵入<small>Fuhou Shinnyuu</small></div></div>
+        </div>
+      </section>
+
+      <section class="videos-section anim-fade-up" id="videos" aria-labelledby="heading-videos">
+        <h2 class="section-title" id="heading-videos">Music <span>Videos</span></h2>
+        <div class="video-grid">
+          <div class="video-card">
+            <div class="video-thumb" data-video-id="At1J4g5T8zE" aria-label="播放 勘ぐれい MV" role="button" tabindex="0"><div class="play-btn">▶</div></div>
+            <h4>勘ぐれい <small>Kangurei</small></h4>
+          </div>
+          <div class="video-card">
+            <div class="video-thumb" data-video-id="Gj9z40K9t2A" aria-label="播放 秒針を噛む MV" role="button" tabindex="0"><div class="play-btn">▶</div></div>
+            <h4>秒針を噛む <small>Byoushin wo Kamu</small></h4>
+          </div>
+          <div class="video-card">
+            <div class="video-thumb" data-video-id="O2sT3mC6n2Y" aria-label="播放 残機 MV" role="button" tabindex="0"><div class="play-btn">▶</div></div>
+            <h4>残機 <small>Zanki</small></h4>
+          </div>
+          <div class="video-card">
+            <div class="video-thumb" data-video-id="eC6JqP3k4ZQ" aria-label="播放 正しくなれない MV" role="button" tabindex="0"><div class="play-btn">▶</div></div>
+            <h4>正しくなれない <small>Tadashikunarenai</small></h4>
+          </div>
+        </div>
+      </section>
+
+      <section class="about-section anim-fade-up" id="about" aria-labelledby="heading-about">
+        <h2 class="section-title" id="heading-about">關於<span>ZUTOMAYO</span></h2>
+        <p>ずっと真夜中でいいのに。（ZUTOMAYO）是一支於 2018 年出道的日本音樂企劃。以獨特的音樂風格、辨識度極高的低沉女聲，以及充滿電影感的 MV 視覺美學迅速走紅。首支單曲〈秒針を噛む〉在 YouTube 上突破 1 億次播放，隨後推出的多首作品均獲得極高人氣。2026 年，ZUTOMAYO 將再度登陸香港，為樂迷帶來一場無法複製的現場演出體驗。</p>
+      </section>
+
+      <section class="faq-section anim-fade-up" id="faq" aria-labelledby="heading-faq">
+        <h2 class="section-title" id="heading-faq">常見<span>問題</span></h2>
+        <div class="faq-list">
+          <details><summary>門票何時公開發售？</summary><p>預計 2026 年 4 月中旬於 KKtix 公開發售，請密切留意官方公佈。</p></details>
+          <details><summary>是否有年齡限制？</summary><p>6 歲以下恕不招待。6 歲或以上需持有效門票入場。</p></details>
+          <details><summary>場內可以拍照或錄影嗎？</summary><p>演出期間請勿錄影、錄音及拍照，以免影響其他觀眾及演出者。</p></details>
+          <details><summary>如何前往亞洲國際博覽館？</summary><p>可乘搭機場快線至博覽館站（約28分鐘由香港站直達），或乘搭多條巴士路線（E11、E21、E22、E32、E41 等）。</p></details>
+          <details><summary>是否有官方周邊商品發售？</summary><p>演唱會當日場館將設有官方周邊商品攤位，詳情稍後公佈。</p></details>
+        </div>
+      </section>
+
+      <div style="text-align:center;padding:0 0 80px">
+        <div class="social-links">
+          <a href="https://www.youtube.com/@ZUTOMAYO" target="_blank" rel="noopener noreferrer" aria-label="YouTube">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22.54 6.42a2.78 2.78 0 0 0-1.94-2C18.88 4 12 4 12 4s-6.88 0-8.6.46a2.78 2.78 0 0 0-1.94 2A29.94 29.94 0 0 0 1 12a29.94 29.94 0 0 0 .46 5.58 2.78 2.78 0 0 0 1.94 2C5.12 20 12 20 12 20s6.88 0 8.6-.46a2.78 2.78 0 0 0 1.94-2A29.94 29.94 0 0 0 23 12a29.94 29.94 0 0 0-.46-5.58z"/><polygon points="9.75 15.02 15.5 12 9.75 8.98 9.75 15.02"/></svg>
+          </a>
+          <a href="https://x.com/zutomayo_staff" target="_blank" rel="noopener noreferrer" aria-label="X (Twitter)">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4l6.5 7.5L4 20h1.5l5.5-6.5 4.5 6.5H20l-7-8 6.5-7.5h-1.5L12.5 11 8 4H4z"/></svg>
+          </a>
+          <a href="https://www.instagram.com/zutomayo_off/" target="_blank" rel="noopener noreferrer" aria-label="Instagram">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="20" rx="5" ry="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/></svg>
+          </a>
+          <a href="https://zutomayo.jp/" target="_blank" rel="noopener noreferrer" aria-label="官方網站">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+          </a>
+        </div>
       </div>
-      ${items.length ? `<div class="grid">${items.map(itemCard).join('')}</div>` : '<div class="empty-state"><p>暫無物品，快來成為第一個發佈者</p><a href="#/items/new" class="btn btn-primary">發佈物品</a></div>'}
-    </section>`;
+
+      <section>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+          <h2>最新物品</h2>
+          <a href="#/items">查看全部 →</a>
+        </div>
+        ${items.length ? `<div class="grid">${items.map(itemCard).join('')}</div>` : '<div class="empty-state"><p>暫無物品，快來成為第一個發佈者</p><a href="#/items/new" class="btn btn-primary">發佈物品</a></div>'}
+      </section>
+    </div>`;
+
+  initParticles();
+  initCountdown();
+  initYouTubeLazy();
+  initParallaxOrbs();
+  initScrollAnimations();
+  initShareButton();
+  initHomeScrollLinks();
+}
+
+// ─── Concert Init Functions ────────────────────────────────────────
+function initParticles() {
+  const canvas = document.getElementById('particleCanvas');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  let particles = [];
+  const isMobile = window.innerWidth < 768;
+  const PARTICLE_COUNT = isMobile ? 30 : 70;
+  const pColors = ['rgba(139,92,246,OPACITY)', 'rgba(217,70,239,OPACITY)', 'rgba(34,211,238,OPACITY)'];
+
+  function resizeCanvas() {
+    const hero = canvas.closest('.hero-concert');
+    canvas.width = hero ? hero.offsetWidth : canvas.offsetWidth;
+    canvas.height = hero ? hero.offsetHeight : canvas.offsetHeight;
+  }
+  window.addEventListener('resize', resizeCanvas);
+
+  class Particle {
+    constructor() { this.reset(); }
+    reset() {
+      this.x = Math.random() * canvas.width;
+      this.y = canvas.height + 10;
+      this.size = Math.random() * 2.5 + 0.8;
+      this.speedY = -(Math.random() * 0.4 + 0.15);
+      this.speedX = (Math.random() - 0.5) * 0.3;
+      this.opacity = Math.random() * 0.5 + 0.15;
+      this.color = pColors[Math.floor(Math.random() * 3)];
+    }
+    update() {
+      this.x += this.speedX;
+      this.y += this.speedY;
+      this.opacity -= 0.0015;
+      if (this.y < -10 || this.opacity <= 0) this.reset();
+    }
+    draw(ctx) {
+      ctx.beginPath();
+      ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+      ctx.fillStyle = this.color.replace('OPACITY', this.opacity.toFixed(2));
+      ctx.fill();
+    }
+  }
+
+  const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (prefersReducedMotion) return;
+
+  resizeCanvas();
+  for (let i = 0; i < PARTICLE_COUNT; i++) {
+    const p = new Particle();
+    p.y = Math.random() * canvas.height;
+    particles.push(p);
+  }
+
+  function animate() {
+    if (!document.getElementById('particleCanvas')) { state._particleRAF = null; return; }
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    particles.forEach(p => { p.update(); p.draw(ctx); });
+    state._particleRAF = requestAnimationFrame(animate);
+  }
+  animate();
+}
+
+function initCountdown() {
+  const target = new Date('2026-06-06T19:00:00+08:00');
+  const daysEl = document.getElementById('cd-days');
+  const hoursEl = document.getElementById('cd-hours');
+  const minsEl = document.getElementById('cd-mins');
+  const secsEl = document.getElementById('cd-secs');
+  if (!daysEl || !hoursEl || !minsEl || !secsEl) return;
+
+  let prev = { days: -1, hours: -1, mins: -1, secs: -1 };
+  function pad(n) { return String(n).padStart(2, '0'); }
+
+  function update() {
+    if (!document.getElementById('cd-days')) { clearInterval(state._countdownInterval); state._countdownInterval = null; return; }
+    const now = new Date();
+    const diff = target - now;
+    if (diff <= 0) {
+      ['days','hours','mins','secs'].forEach(id => {
+        const el = document.getElementById('cd-' + id);
+        if (el) el.textContent = '00';
+      });
+      return;
+    }
+    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+    const hours = Math.floor((diff / (1000 * 60 * 60)) % 24);
+    const mins = Math.floor((diff / (1000 * 60)) % 60);
+    const secs = Math.floor((diff / 1000) % 60);
+    const vals = { days, hours: pad(hours), mins: pad(mins), secs: pad(secs) };
+    for (const [key, val] of Object.entries(vals)) {
+      const el = document.getElementById('cd-' + key);
+      if (!el) continue;
+      if (String(prev[key]) !== String(val)) {
+        el.style.transform = 'scale(1.25)';
+        el.style.transition = 'transform 0.15s cubic-bezier(0.34,1.56,0.64,1)';
+        el.textContent = val;
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => { el.style.transform = 'scale(1)'; });
+        });
+      }
+      prev[key] = val;
+    }
+  }
+  update();
+  state._countdownInterval = setInterval(update, 1000);
+}
+
+function initYouTubeLazy() {
+  document.querySelectorAll('.video-thumb').forEach(thumb => {
+    function loadVideo() {
+      const videoId = thumb.dataset.videoId;
+      const iframe = document.createElement('iframe');
+      iframe.src = 'https://www.youtube.com/embed/' + videoId + '?autoplay=1&rel=0';
+      iframe.allow = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture';
+      iframe.allowFullscreen = true;
+      iframe.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;border:0;border-radius:12px;';
+      iframe.title = thumb.getAttribute('aria-label') || 'YouTube video';
+      thumb.style.position = 'relative';
+      thumb.style.paddingBottom = '56.25%';
+      thumb.appendChild(iframe);
+    }
+    thumb.addEventListener('click', loadVideo, { once: true });
+    thumb.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); loadVideo(); }
+    }, { once: true });
+  });
+}
+
+function initParallaxOrbs() {
+  const orb1 = document.querySelector('.glow-orb-1');
+  const orb2 = document.querySelector('.glow-orb-2');
+  if (!orb1 || !orb2) return;
+
+  function onScroll() {
+    const docHeight = document.documentElement.scrollHeight - window.innerHeight;
+    const pct = docHeight > 0 ? window.scrollY / docHeight : 0;
+    orb1.style.transform = 'translate(' + (pct * 40) + 'px, ' + (pct * 60) + 'px)';
+    orb2.style.transform = 'translate(' + (-pct * 30) + 'px, ' + (-pct * 50) + 'px)';
+  }
+  window.addEventListener('scroll', onScroll, { passive: true });
+  state._parallaxHandler = onScroll;
+}
+
+function initScrollAnimations() {
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        entry.target.classList.add('is-visible');
+        observer.unobserve(entry.target);
+      }
+    });
+  }, { threshold: 0.15, rootMargin: '0px 0px -40px 0px' });
+  document.querySelectorAll('.anim-fade-up').forEach(el => observer.observe(el));
+}
+
+function initShareButton() {
+  const btn = document.getElementById('shareBtn');
+  if (!btn) return;
+  btn.addEventListener('click', async () => {
+    const data = {
+      title: 'ZUTOMAYO LIVE IN HONG KONG 2026 | ずっと真夜中でいいのに。',
+      text: '2026年6月6日 亞洲國際博覽館 Arena · HK$1,280 / 980 / 680',
+      url: window.location.href
+    };
+    if (navigator.share) {
+      try { await navigator.share(data); } catch (e) { /* user cancelled */ }
+    } else {
+      await navigator.clipboard.writeText(window.location.href);
+      const orig = btn.innerHTML;
+      btn.innerHTML = '&#10003; 已複製連結';
+      btn.classList.add('btn-primary');
+      setTimeout(() => { btn.innerHTML = orig; btn.classList.remove('btn-primary'); }, 2000);
+    }
+  });
+}
+
+function initHomeScrollLinks() {
+  document.querySelectorAll('[data-scroll]').forEach(link => {
+    link.addEventListener('click', (e) => {
+      e.preventDefault();
+      const id = link.getAttribute('data-scroll');
+      const target = document.getElementById(id);
+      if (target) target.scrollIntoView({ behavior: 'smooth' });
+    });
+  });
 }
 
 // ─── PAGE: Login ─────────────────────────────────────────────────
@@ -396,6 +735,7 @@ async function registerPage(el) {
 async function itemsBrowsePage(el, params) {
   let filters = { search: '', category: '', status: 'available', exchange_mode: '', sort_by: 'newest', page: 1 };
   let data = { items: [], total: 0, total_pages: 1 };
+  let exchangeStates = {};
 
   async function load() {
     const q = new URLSearchParams({ page: filters.page, page_size: 20 });
@@ -404,7 +744,19 @@ async function itemsBrowsePage(el, params) {
     if (filters.category) q.set('category', filters.category);
     if (filters.exchange_mode) q.set('exchange_mode', filters.exchange_mode);
     q.set('sort_by', filters.sort_by);
-    data = await api('/items/?' + q.toString());
+    const [itemsData, exData] = await Promise.all([
+      api('/items/?' + q.toString()),
+      state.user ? api('/exchanges/?page_size=100') : Promise.resolve({ items: [] }),
+    ]);
+    data = itemsData;
+    exchangeStates = {};
+    if (exData.items) {
+      exData.items.forEach(ex => {
+        if (['pending', 'accepted', 'completed', 'cancel_requested'].includes(ex.status) && ex.to_item_id) {
+          exchangeStates[ex.to_item_id] = ex.status;
+        }
+      });
+    }
     render();
   }
 
@@ -413,12 +765,13 @@ async function itemsBrowsePage(el, params) {
       <h1>瀏覽物品</h1>
       ${filterBar(filters)}
       ${data.items.length
-        ? `<div class="grid">${data.items.map(itemCard).join('')}</div>${pagination(filters.page, data.total_pages, (p) => { filters.page = p; load(); })}`
+        ? `<div class="grid">${data.items.map(it => itemCard(it, exchangeStates[it.id])).join('')}</div>${pagination(filters.page, data.total_pages, (p) => { filters.page = p; load(); })}`
         : '<div class="empty-state"><p>暫無物品</p><a href="#/items/new" class="btn btn-primary">成為第一個發佈者</a></div>'}`;
     bindFilterEvents(filters, load);
+    initCustomSelects();
   }
 
-  render();
+  load();
 }
 
 function bindFilterEvents(filters, loadFn) {
@@ -444,13 +797,21 @@ async function itemDetailPage(el, params) {
 
   let actions = '';
   if (state.user && item.owner_id !== state.user.id && item.status === 'available') {
-    actions += `<button class="btn btn-primary" id="btnReqExchange">請求交換</button>`;
+    let exStatus = null;
+    try { const r = await api('/exchanges/check/' + item.id); exStatus = r.status; } catch {}
+    if (exStatus) {
+      actions += `<button class="btn btn-primary" disabled style="opacity:0.5;cursor:not-allowed">${exStatus === 'cancel_requested' ? '取消申請中' : '已發起請求'}</button>`;
+    } else {
+      actions += `<button class="btn btn-primary" id="btnReqExchange">請求交換</button>`;
+    }
   }
   if (state.user?.id === item.owner_id) {
     actions += `<a href="#/items/${item.id}/edit" class="btn btn-ghost">編輯</a>`;
+    actions += `<button class="btn btn-danger" id="btnDeleteItem">刪除</button>`;
   }
   if (state.user && item.owner_id !== state.user.id) {
     actions += `<button class="btn btn-ghost" id="btnToggleFav">收藏</button>`;
+    actions += `<button class="btn btn-ghost" id="btnReport">舉報</button>`;
   }
 
   el.innerHTML = `
@@ -543,6 +904,7 @@ async function itemDetailPage(el, params) {
             <button class="btn btn-ghost" id="btnCancelExchange">取消</button>
           </div>
         </div>`;
+      initCustomSelects();
       document.getElementById('btnCancelExchange').onclick = () => { form.style.display = 'none'; };
       document.getElementById('btnSendExchange').onclick = async () => {
         const msg = document.getElementById('exchangeMsg').value;
@@ -556,6 +918,33 @@ async function itemDetailPage(el, params) {
           toast('請求已發送！');
         } catch (e) { toast(e.detail || '發送失敗', 'error'); }
       };
+    };
+  }
+
+  // Delete button
+  const btnDelete = document.getElementById('btnDeleteItem');
+  if (btnDelete) {
+    btnDelete.onclick = async () => {
+      const res = await showConfirm({ title: '確定要刪除嗎？', message: `「${item.title}」將被永久刪除，且無法恢復。`, confirmText: '確認刪除', danger: true });
+      if (!res.confirmed) return;
+      try {
+        await api('/items/' + item.id, { method: 'DELETE' });
+        toast('已刪除');
+        location.hash = '#/items';
+      } catch (e) { toast(e.detail || '刪除失敗', 'error'); }
+    };
+  }
+
+  // Report button
+  const btnReport = document.getElementById('btnReport');
+  if (btnReport) {
+    btnReport.onclick = async () => {
+      const res = await showConfirm({ title: '舉報此物品', message: '如果此物品包含不當內容，請說明原因：', showReason: true, confirmText: '提交舉報', danger: true });
+      if (!res.confirmed || !res.reason) return;
+      try {
+        await api('/reports/', { method: 'POST', body: { target_type: 'item', target_id: item.id, reason: res.reason } });
+        toast('已提交舉報');
+      } catch (e) { toast(e.detail || '舉報失敗', 'error'); }
     };
   }
 }
@@ -740,7 +1129,7 @@ async function myExchangesPage(el) {
               ${ex.from_item_title ? ` <span style="color:var(--text-muted)">↔ 提供 ${escHtml(ex.from_item_title)}</span>` : ''}
             </div>
           </a>`).join('')
-        : '<div class="empty-state"><p>暫無交換記錄</p></div>'}
+        : '<div class="empty-state"><p>暫無交換紀錄</p></div>'}
       ${pagination(page, data.total_pages, (p) => { page = p; load(); })}`;
 
     el.querySelectorAll('[data-role]').forEach(b => b.onclick = () => { role = b.dataset.role; page = 1; load(); });
@@ -831,12 +1220,12 @@ async function exchangeDetailPage(el, params) {
 // ─── PAGE: Messages List ─────────────────────────────────────────
 async function messagesPage(el) {
   const data = await api('/exchanges/?page_size=100');
-  const active = data.items.filter(e => e.status !== 'completed' && e.status !== 'cancelled');
+  const active = data.items.filter(e => e.id && e.status !== 'completed' && e.status !== 'cancelled');
   el.innerHTML = `
-    <h1>訊息</h1>
+    <div style="margin-bottom:20px"><h1>訊息</h1></div>
     ${active.length
       ? active.map(ex => `
-        <a href="#/messages/${ex.id}" class="card" style="display:flex;justify-content:space-between;align-items:center;text-decoration:none;color:var(--text);margin-bottom:8px">
+        <a href="#/messages/${ex.id}" class="card" style="display:flex;justify-content:space-between;align-items:center;text-decoration:none;color:var(--text);margin-bottom:10px">
           <div>
             <strong>${escHtml(ex.to_item_title)}</strong>
             <span style="color:var(--text-secondary);margin-left:8px;font-size:0.85rem">${escHtml(ex.from_user_nickname)} ↔ ${escHtml(ex.to_user_nickname)}</span>
@@ -848,9 +1237,14 @@ async function messagesPage(el) {
 
 // ─── PAGE: Message Thread ────────────────────────────────────────
 async function messageThreadPage(el, params) {
+  const exchangeId = parseInt(params.exchangeId, 10);
+  if (!exchangeId || exchangeId < 1) {
+    el.innerHTML = '<div class="alert alert-error">無效的交換請求</div>';
+    return;
+  }
   const [ex, msgs] = await Promise.all([
-    api('/exchanges/' + params.id),
-    api('/messages/exchanges/' + params.id),
+    api('/exchanges/' + exchangeId),
+    api('/messages/exchanges/' + exchangeId),
   ]);
 
   function render() {
@@ -884,7 +1278,7 @@ async function messageThreadPage(el, params) {
     const input = document.getElementById('msgInput');
     if (!input.value.trim()) return;
     try {
-      const msg = await api('/messages/exchanges/' + params.id, { method: 'POST', body: { content: input.value } });
+      const msg = await api('/messages/exchanges/' + exchangeId, { method: 'POST', body: { content: input.value } });
       msgs.push(msg);
       input.value = '';
       render();
@@ -896,7 +1290,7 @@ async function messageThreadPage(el, params) {
   // Poll for new messages
   const poll = setInterval(async () => {
     try {
-      const newMsgs = await api('/messages/exchanges/' + params.id);
+      const newMsgs = await api('/messages/exchanges/' + exchangeId);
       if (newMsgs.length !== msgs.length) { msgs.length = 0; msgs.push(...newMsgs); render(); }
     } catch {}
   }, 8000);
@@ -905,16 +1299,26 @@ async function messageThreadPage(el, params) {
 
 // ─── PAGE: Favorites ─────────────────────────────────────────────
 async function favoritesPage(el) {
-  let page = 1; let data;
+  let page = 1; let data; let exchangeStates = {};
   async function load() {
-    data = await api('/favorites/?page=' + page);
+    const [favData, exData] = await Promise.all([
+      api('/favorites/?page=' + page),
+      api('/exchanges/?page_size=100'),
+    ]);
+    data = favData;
+    exchangeStates = {};
+    exData.items.forEach(ex => {
+      if (['pending', 'accepted', 'completed', 'cancel_requested'].includes(ex.status) && ex.to_item_id) {
+        exchangeStates[ex.to_item_id] = ex.status;
+      }
+    });
     render();
   }
   function render() {
     el.innerHTML = `
       <h1>我的收藏</h1>
       ${data.items.length
-        ? `<div class="grid">${data.items.map(item => `<div>${itemCard(item)}<button class="btn btn-xs btn-danger" data-unfav="${item.id}" style="margin-top:8px">取消收藏</button></div>`).join('')}</div>
+        ? `<div class="grid">${data.items.map(item => `<div>${itemCard(item, exchangeStates[item.id])}<button class="btn btn-xs btn-danger" data-unfav="${item.id}" style="margin-top:8px">取消收藏</button></div>`).join('')}</div>
            ${pagination(page, data.total_pages, (p) => { page = p; load(); })}`
         : '<div class="empty-state"><p>還沒有收藏任何物品</p><a href="#/items" class="btn btn-primary">瀏覽物品</a></div>'}`;
     el.querySelectorAll('[data-unfav]').forEach(b => b.onclick = async () => {
@@ -1158,10 +1562,68 @@ function requireAdmin(handler) {
 // Event delegation for pagination
 document.addEventListener('click', (e) => {
   const btn = e.target.closest('.pagination button[data-page]');
-  if (!btn) return;
-  const handler = btn._pageHandler;
+  if (!btn || btn.disabled) return;
+  const wrap = btn.closest('.pagination');
+  const handler = pageHandlers.get(parseInt(wrap?.dataset.ph));
   if (handler) handler(parseInt(btn.dataset.page));
 });
+
+// ─── Custom Select ─────────────────────────────────────────────────
+function closeAllCusels() {
+  document.querySelectorAll('.cusel.open').forEach(c => c.classList.remove('open'));
+}
+
+function initCustomSelects() {
+  document.querySelectorAll('select').forEach(select => {
+    if (select.closest('.cusel')) return;
+
+    const options = Array.from(select.options).map(opt => ({
+      value: opt.value, label: opt.textContent, selected: opt.selected
+    }));
+    const selected = options.find(o => o.selected) || options[0];
+    const wrapper = document.createElement('div');
+    wrapper.className = 'cusel';
+
+    const trigger = document.createElement('div');
+    trigger.className = 'cusel-trigger';
+    trigger.innerHTML = `<span class="cusel-label">${selected?.label || ''}</span><span class="cusel-arrow">▸</span>`;
+
+    const drop = document.createElement('div');
+    drop.className = 'cusel-drop';
+    drop.innerHTML = options.map(o =>
+      `<div class="cusel-opt${o.selected ? ' sel' : ''}" data-value="${escHtml(o.value)}">${escHtml(o.label)}</div>`
+    ).join('');
+
+    wrapper.appendChild(trigger);
+    wrapper.appendChild(drop);
+    select.style.display = 'none';
+    select.parentNode.insertBefore(wrapper, select);
+    wrapper.appendChild(select);
+
+    trigger.addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      const wasOpen = wrapper.classList.contains('open');
+      closeAllCusels();
+      if (!wasOpen) wrapper.classList.add('open');
+    });
+
+    drop.querySelectorAll('.cusel-opt').forEach(optEl => {
+      optEl.addEventListener('click', () => {
+        trigger.querySelector('.cusel-label').textContent = optEl.textContent;
+        drop.querySelectorAll('.cusel-opt').forEach(o => o.classList.remove('sel'));
+        optEl.classList.add('sel');
+        select.value = optEl.dataset.value;
+        select.dispatchEvent(new Event('change', { bubbles: true }));
+        wrapper.classList.remove('open');
+      });
+    });
+  });
+
+  if (!document._cuselListener) {
+    document._cuselListener = true;
+    document.addEventListener('click', closeAllCusels);
+  }
+}
 
 // ─── Init ────────────────────────────────────────────────────────
 window.addEventListener('hashchange', navigate);
@@ -1176,8 +1638,14 @@ window.addEventListener('load', async () => {
           api('/notifications/unread-count').catch(() => ({ count: 0 })),
           api('/messages/unread-count').catch(() => ({ count: 0 })),
         ]);
-        // Update badge in nav if we add one later
       } catch {}
     }, 30000);
   }
 });
+
+// ─── Back to Top ──────────────────────────────────────────────────
+const backToTopBtn = document.getElementById('backToTop');
+window.addEventListener('scroll', () => {
+  if (backToTopBtn) backToTopBtn.classList.toggle('visible', window.scrollY > 600);
+}, { passive: true });
+if (backToTopBtn) backToTopBtn.addEventListener('click', () => window.scrollTo({ top: 0, behavior: 'smooth' }));
