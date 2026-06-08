@@ -462,7 +462,7 @@ async function homePage(el) {
           <h2>最新物品</h2>
           <a href="#/items">查看全部 →</a>
         </div>
-        ${items.length ? `<div class="grid">${items.map(itemCard).join('')}</div>` : '<div class="empty-state"><p>暫無物品，快來成為第一個發佈者</p><a href="#/items/new" class="btn btn-primary">發佈物品</a></div>'}
+        ${items.length ? `<div class="grid">${items.map(it => itemCard(it)).join('')}</div>` : '<div class="empty-state"><p>暫無物品，快來成為第一個發佈者</p><a href="#/items/new" class="btn btn-primary">發佈物品</a></div>'}
       </section>
     </div>`;
 
@@ -1418,7 +1418,7 @@ async function userProfilePage(el, params) {
     const content = document.getElementById('profileTabContent');
     if (tab === 'items') {
       content.innerHTML = items.items.length
-        ? `<div class="grid">${items.items.map(itemCard).join('')}</div>`
+        ? `<div class="grid">${items.items.map(it => itemCard(it)).join('')}</div>`
         : '<div class="empty-state"><p>暫無物品</p></div>';
     } else {
       content.innerHTML = reviews.items.length

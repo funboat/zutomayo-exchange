@@ -32,7 +32,7 @@ async def check_exchange_status(db: AsyncSession, user_id: int, item_id: int):
         .where(
             ExchangeRequest.from_user_id == user_id,
             ExchangeRequest.to_item_id == item_id,
-            ExchangeRequest.status.in_(["pending", "accepted", "completed"]),
+            ExchangeRequest.status.in_(["pending", "accepted", "completed", "cancel_requested"]),
         )
         .order_by(ExchangeRequest.created_at.desc())
         .limit(1)
@@ -79,7 +79,7 @@ async def create_exchange(db: AsyncSession, from_user_id: int, data: ExchangeCre
         select(ExchangeRequest).where(
             ExchangeRequest.from_user_id == from_user_id,
             ExchangeRequest.to_item_id == data.to_item_id,
-            ExchangeRequest.status.in_(["pending", "accepted", "completed"]),
+            ExchangeRequest.status.in_(["pending", "accepted", "completed", "cancel_requested"]),
         )
     )
     if dup.scalar_one_or_none():
