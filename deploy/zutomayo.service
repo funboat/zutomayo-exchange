@@ -1,0 +1,15 @@
+[Unit]
+Description=ZUTOMAYO Exchange Backend
+After=network.target postgresql.service
+
+[Service]
+Type=simple
+User=www-data
+WorkingDirectory=/opt/zutomayo-exchange/backend
+EnvironmentFile=/opt/zutomayo-exchange/.env
+ExecStart=/opt/zutomayo-exchange/backend/venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8000 --workers 4
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
