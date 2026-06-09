@@ -64,7 +64,7 @@ function logout() {
 function toast(msg, type = 'success') {
   const el = document.getElementById('toastContainer');
   const t = document.createElement('div');
-  t.className = `toast toast-\${type}`;
+  t.className = `toast toast-${type}`;
   t.textContent = msg;
   el.appendChild(t);
   setTimeout(() => { t.style.opacity = '0'; t.style.transition = 'opacity 0.3s'; setTimeout(() => t.remove(), 300); }, 3000);
@@ -186,6 +186,7 @@ function renderNav() {
       { pattern: /^exchanges/, nav: 'exchanges' },
       { pattern: /^messages\/\d+/, nav: 'messages' },
       { pattern: /^messages/, nav: 'messages' },
+      { pattern: /^notice/, nav: 'notifications' },
       { pattern: /^notifications/, nav: 'notifications' },
       { pattern: /^favorites/, nav: 'favorites' },
       { pattern: /^profile/, nav: 'profile' },
@@ -851,8 +852,8 @@ async function itemDetailPage(el, params) {
     favBtn.onclick = async () => {
       try {
         const fav = await api('/favorites/check/' + item.id);
-        if (fav.is_favorited) { await api('/favorites/' + item.id, { method: 'DELETE' }); favBtn.textContent = '收藏'; toast('已取消收藏'); }
-        else { await api('/favorites/', { method: 'POST', body: { item_id: item.id } }); favBtn.textContent = '取消收藏'; toast('已收藏'); }
+        if (fav.is_favorited) { await api('/favorites/' + item.id, { method: 'DELETE' }); favBtn.textContent = '收藏'; toast('已取消收藏', 'warning'); }
+        else { await api('/favorites/', { method: 'POST', body: { item_id: item.id } }); favBtn.textContent = '取消收藏'; toast('已收藏', 'info'); }
       } catch (e) { toast(e.detail || '操作失敗', 'error'); }
     };
   }
@@ -929,7 +930,7 @@ async function itemDetailPage(el, params) {
       if (!res.confirmed) return;
       try {
         await api('/items/' + item.id, { method: 'DELETE' });
-        toast('已刪除');
+        toast('已刪除', 'warning');
         location.hash = '#/items';
       } catch (e) { toast(e.detail || '刪除失敗', 'error'); }
     };
@@ -943,7 +944,7 @@ async function itemDetailPage(el, params) {
       if (!res.confirmed || !res.reason) return;
       try {
         await api('/reports/', { method: 'POST', body: { target_type: 'item', target_id: item.id, reason: res.reason } });
-        toast('已提交舉報');
+        toast('已提交舉報', 'info');
       } catch (e) { toast(e.detail || '舉報失敗', 'error'); }
     };
   }
@@ -1032,7 +1033,7 @@ async function itemEditPage(el, params) {
         wanted_items: document.getElementById('itemWanted').value,
         images,
       }});
-      toast('已更新');
+      toast('已更新', 'info');
       location.hash = '#/items/' + params.id;
     } catch (e) { errEl.innerHTML = `<div class="alert alert-error">${e.detail || '更新失敗'}</div>`; }
   };
@@ -1061,7 +1062,7 @@ function renderImageUploader(images) {
         const res = await api('/upload/image', { method: 'POST', body: formData });
         images.push(res.url);
         render();
-        toast('上傳成功');
+        toast('上傳成功', 'info');
       } catch (e) { toast(e.detail || '上傳失敗', 'error'); }
     };
   }
@@ -1090,7 +1091,7 @@ async function myItemsPage(el) {
   el.querySelectorAll('[data-delete]').forEach(b => b.onclick = async () => {
     if (!confirm('確定要刪除此物品？')) return;
     await api('/items/' + b.dataset.delete, { method: 'DELETE' });
-    toast('已刪除');
+    toast('已刪除', 'warning');
     myItemsPage(el);
   });
 }
@@ -1199,7 +1200,7 @@ async function exchangeDetailPage(el, params) {
     </div>`;
 
   const act = async (action, body) => {
-    try { await api(`/exchanges/${ex.id}/${action}`, { method: 'PUT', body }); toast('操作成功'); exchangeDetailPage(el, params); } catch (e) { toast(e.detail || '操作失敗', 'error'); }
+    try { await api(`/exchanges/${ex.id}/${action}`, { method: 'PUT', body }); toast('操作成功', 'info'); exchangeDetailPage(el, params); } catch (e) { toast(e.detail || '操作失敗', 'error'); }
   };
   document.getElementById('btnAccept')?.addEventListener('click', () => act('accept'));
   document.getElementById('btnReject')?.addEventListener('click', () => act('reject'));
@@ -1210,7 +1211,7 @@ async function exchangeDetailPage(el, params) {
     if (res.confirmed && res.reason) {
       await act('request-cancel', { reason: res.reason });
     } else if (res.confirmed && !res.reason) {
-      toast('請提供取消理由', 'error');
+      toast('請提供取消理由', 'warning');
     }
   });
   document.getElementById('btnApproveCancel')?.addEventListener('click', () => act('approve-cancel'));
@@ -1323,7 +1324,7 @@ async function favoritesPage(el) {
         : '<div class="empty-state"><p>還沒有收藏任何物品</p><a href="#/items" class="btn btn-primary">瀏覽物品</a></div>'}`;
     el.querySelectorAll('[data-unfav]').forEach(b => b.onclick = async () => {
       await api('/favorites/' + b.dataset.unfav, { method: 'DELETE' });
-      toast('已取消收藏');
+      toast('已取消收藏', 'warning');
       load();
     });
   }
@@ -1372,6 +1373,8 @@ async function notificationsPage(el) {
           location.hash = '#/exchanges/' + related;
         } else if (related && type === 'new_message') {
           location.hash = '#/messages/' + related;
+        } else if (['new_review','item_deleted'].includes(type)) {
+          location.hash = '#/notice/' + nid;
         }
       };
     });
@@ -1514,6 +1517,110 @@ async function adminReportsPage(el) {
   await load();
 }
 
+// ─── PAGE: Admin Categories ──────────────────────────────────────
+async function adminCategoriesPage(el) {
+  let cats = [];
+
+  async function load() {
+    cats = await api('/admin/categories');
+    render();
+  }
+
+  function render() {
+    el.innerHTML = `
+      <h1>類別管理</h1>
+      <div class="card" style="margin-bottom:22px;padding:20px">
+        <h3 style="margin-bottom:14px">新增類別</h3>
+        <div style="display:flex;gap:10px;align-items:end;flex-wrap:wrap">
+          <div class="form-group" style="margin:0"><label>Key（英文標識）</label><input type="text" id="catKey" placeholder="例：goods" style="width:130px" /></div>
+          <div class="form-group" style="margin:0"><label>Label（顯示名稱）</label><input type="text" id="catLabel" placeholder="例：周邊" style="width:130px" /></div>
+          <div class="form-group" style="margin:0"><label>排序</label><input type="number" id="catSort" value="0" style="width:70px" /></div>
+          <button class="btn btn-primary btn-sm" id="btnAdd">新增</button>
+        </div>
+        <div id="addError" style="margin-top:10px"></div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Key</th><th>Label</th><th>排序</th><th>狀態</th><th>操作</th></tr></thead>
+          <tbody>
+            ${cats.map(c => `
+              <tr>
+                <td><code>${escHtml(c.key)}</code></td>
+                <td><input type="text" value="${escHtml(c.label)}" data-edit-label="${c.id}" style="width:100px" /></td>
+                <td><input type="number" value="${c.sort_order}" data-edit-sort="${c.id}" style="width:60px" /></td>
+                <td>${c.is_active ? '<span style="color:var(--success)">啟用</span>' : '<span style="color:var(--text-muted)">停用</span>'}</td>
+                <td>
+                  <div style="display:flex;gap:6px">
+                    <button class="btn btn-xs btn-ghost" data-save="${c.id}">儲存</button>
+                    <button class="btn btn-xs btn-ghost" data-toggle="${c.id}">${c.is_active ? '停用' : '啟用'}</button>
+                    <button class="btn btn-xs btn-danger" data-delete="${c.id}">刪除</button>
+                  </div>
+                </td>
+              </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>`;
+
+    document.getElementById('btnAdd').onclick = async () => {
+      const key = document.getElementById('catKey').value.trim();
+      const label = document.getElementById('catLabel').value.trim();
+      const sort = parseInt(document.getElementById('catSort').value) || 0;
+      if (!key || !label) { document.getElementById('addError').innerHTML = '<div class="alert alert-error">請填寫 Key 和 Label</div>'; return; }
+      try {
+        await api('/admin/categories', { method: 'POST', body: { key, label, sort_order: sort } });
+        document.getElementById('addError').innerHTML = '';
+        load();
+      } catch (e) { document.getElementById('addError').innerHTML = `<div class="alert alert-error">${e.detail || '新增失敗'}</div>`; }
+    };
+
+    el.querySelectorAll('[data-save]').forEach(b => b.onclick = async () => {
+      const id = parseInt(b.dataset.save);
+      const label = el.querySelector(`[data-edit-label="${id}"]`).value;
+      const sort = parseInt(el.querySelector(`[data-edit-sort="${id}"]`).value) || 0;
+      try { await api('/admin/categories/' + id, { method: 'PUT', body: { label, sort_order: sort } }); load(); }
+      catch (e) { toast(e.detail || '更新失敗', 'error'); }
+    });
+
+    el.querySelectorAll('[data-toggle]').forEach(b => b.onclick = async () => {
+      const id = parseInt(b.dataset.toggle);
+      const cat = cats.find(c => c.id === id);
+      try { await api('/admin/categories/' + id, { method: 'PUT', body: { is_active: !cat.is_active } }); load(); }
+      catch (e) { toast(e.detail || '操作失敗', 'error'); }
+    });
+
+    el.querySelectorAll('[data-delete]').forEach(b => b.onclick = async () => {
+      const id = parseInt(b.dataset.delete);
+      if (!confirm('確定要刪除此類別？')) return;
+      try { await api('/admin/categories/' + id, { method: 'DELETE' }); load(); }
+      catch (e) { toast(e.detail || '刪除失敗', 'error'); }
+    });
+  }
+
+  await load();
+}
+
+// ─── PAGE: Notice Detail ──────────────────────────────────────────
+async function noticeDetailPage(el, params) {
+  try {
+    const n = await api('/notifications/' + params.id);
+    const typeMap = { exchange_request: '交換請求', exchange_accepted: '已接受', exchange_rejected: '已拒絕', exchange_completed: '已完成', cancel_requested: '取消申請', exchange_cancelled: '已取消', cancel_rejected: '取消被拒', new_message: '新訊息', new_review: '新評價', item_deleted: '物品已刪除' };
+    el.innerHTML = `
+      <div class="card" style="max-width:640px;margin:0 auto">
+        <h1 style="margin-bottom:16px">通知詳情</h1>
+        <div style="margin-bottom:12px">
+          <span class="tag">${typeMap[n.type] || n.type}</span>
+          <span style="color:var(--text-muted);font-size:0.8rem;margin-left:8px">${formatDateTime(n.created_at)}</span>
+        </div>
+        <p style="color:var(--text-secondary);line-height:1.7">${escHtml(n.content)}</p>
+        ${n.related_id && n.type !== 'item_deleted' ? `<div style="margin-top:16px"><a href="#/exchanges/${n.related_id}" class="btn btn-primary">查看交換詳情</a></div>` : ''}
+        <div style="margin-top:16px"><a href="#/notifications" class="btn btn-ghost">← 返回通知列表</a></div>
+      </div>`;
+    await api('/notifications/' + params.id + '/read', { method: 'PUT' });
+  } catch {
+    el.innerHTML = '<div class="alert alert-error">通知不存在或無法存取</div>';
+  }
+}
+
 // ─── PAGE: 404 ───────────────────────────────────────────────────
 async function notFoundPage(el) {
   el.innerHTML = `
@@ -1543,6 +1650,8 @@ route('/favorites', requireAuth(favoritesPage));
 route('/notifications', requireAuth(notificationsPage));
 route('/admin/invite-codes', requireAdmin(adminInvitePage));
 route('/admin/reports', requireAdmin(adminReportsPage));
+route('/admin/categories', requireAdmin(adminCategoriesPage));
+route('/notice/:id', requireAuth(noticeDetailPage));
 
 // Auth wrappers
 function requireAuth(handler) {

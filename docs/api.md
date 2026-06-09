@@ -283,13 +283,43 @@ Response 200: ExchangeOut
 Response 200: ExchangeOut
 ```
 
+### PUT /api/exchanges/{id}/request-cancel — 申请取消交换
+
+需要登入，任一方可操作，状态必须为 `accepted`。
+
+```
+Body: {
+  "reason": "取消原因"              // string, 必填
+}
+Response 200: ExchangeOut
+```
+
+### PUT /api/exchanges/{id}/approve-cancel — 同意取消
+
+需要登入，仅非申请方可操作，状态必须为 `cancel_requested`。
+
+```
+Response 200: ExchangeOut
+```
+
+### PUT /api/exchanges/{id}/reject-cancel — 拒绝取消
+
+需要登入，仅非申请方可操作，状态必须为 `cancel_requested`。
+
+```
+Response 200: ExchangeOut
+```
+
 **交换状态机：**
 
 ```
 pending ──→ accepted ──→ completed
   │            │
-  ├──→ rejected│
-  └──→ cancelled
+  ├──→ rejected│  ┌──→ cancel_requested ──→ cancelled (双方同意)
+  └──→ cancelled  │       │
+                  │       └──→ rejected (拒绝取消，回到 accepted)
+                  │
+                  └──→ cancelled (pending 状态直接取消)
 ```
 
 ---
@@ -460,7 +490,7 @@ Response 200: {
 }
 ```
 
-通知类型：`exchange_request` / `exchange_accepted` / `exchange_rejected` / `exchange_completed` / `new_message` / `new_review` / `item_deleted`
+通知类型：`exchange_request` / `exchange_accepted` / `exchange_rejected` / `exchange_completed` / `cancel_requested` / `exchange_cancelled` / `cancel_rejected` / `new_message` / `new_review` / `item_deleted`
 
 ### GET /api/notifications/{id} — 通知详情
 
@@ -513,7 +543,7 @@ Response 200: { "url": "/uploads/items/uuid.jpg" }
 Content-Type: multipart/form-data
 Body: file=<binary>                // 支持 JPG/PNG/WebP/GIF，最大 5MB
 
-Response 200: { "url": "/uploads/items/uuid.jpg", "avatar": "/uploads/items/uuid.jpg" }
+Response 200: { "url": "/uploads/items/avatars/uuid.jpg", "nickname": "暱稱", "avatar": "/uploads/items/avatars/uuid.jpg" }
 ```
 
 ---

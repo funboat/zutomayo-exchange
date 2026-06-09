@@ -712,10 +712,25 @@ code { background: rgba(139, 92, 246, 0.1); padding: 3px 8px; border-radius: var
 .toast {
   padding: 14px 22px; border-radius: var(--radius-sm); font-size: 0.88rem;
   animation: slideIn 0.3s ease; max-width: 380px; pointer-events: auto;
-  font-weight: 500; box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+  font-weight: 500; box-shadow: 0 4px 24px rgba(0,0,0,0.5);
+  background: rgba(24,24,27,0.9);
 }
-.toast-success { background: var(--success); color: #0a0a0a; }
-.toast-error { background: var(--danger); color: #fff; }
+.toast-success {
+  background: linear-gradient(135deg, rgba(139,92,246,0.25), rgba(217,70,239,0.2));
+  border: 1px solid rgba(217,70,239,0.25); color: #e4e4e7;
+}
+.toast-info {
+  background: rgba(34,211,238,0.12); border: 1px solid rgba(34,211,238,0.22);
+  color: var(--cyan);
+}
+.toast-warning {
+  background: rgba(251,191,36,0.1); border: 1px solid rgba(251,191,36,0.22);
+  color: var(--warning);
+}
+.toast-error {
+  background: rgba(248,113,113,0.1); border: 1px solid rgba(248,113,113,0.22);
+  color: var(--danger);
+}
 @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
 
 /* ─── Confirm Dialog ──────────────────────────────────────────── */

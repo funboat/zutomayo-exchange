@@ -77,8 +77,12 @@
 | `to_item_id` | `INTEGER` | FK → items.id, NOT NULL | 目标物品 |
 | `status` | `VARCHAR(50)` | DEFAULT 'pending', INDEX | pending / accepted / rejected / cancelled / completed |
 | `message` | `TEXT` | NULLABLE | 交换附言 |
+| `cancel_reason` | `TEXT` | NULLABLE | 取消申请理由 |
+| `cancel_requested_by` | `INTEGER` | FK → users.id, NULLABLE | 取消申请人 |
 | `created_at` | `TIMESTAMPTZ` | SERVER DEFAULT NOW() | 创建时间 |
 | `updated_at` | `TIMESTAMPTZ` | SERVER DEFAULT NOW(), ON UPDATE NOW() | 更新时间 |
+
+状态：`pending` / `accepted` / `rejected` / `cancelled` / `cancel_requested` / `completed`
 
 ---
 

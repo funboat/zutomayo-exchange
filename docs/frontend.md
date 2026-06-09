@@ -14,9 +14,9 @@
 frontend/
 ├── index.html          # SPA 殼（單一 HTML 入口）
 ├── css/
-│   └── style.css       # 全局樣式（~780 行 ZTMY 主題）
+│   └── style.css       # 全局樣式（~810 行 ZTMY 主題）
 └── js/
-    └── app.js          # 完整應用邏輯（~1700 行）
+    └── app.js          # 完整應用邏輯（~1760 行）
 ```
 
 ---
