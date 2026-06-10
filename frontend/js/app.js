@@ -7,6 +7,8 @@ const state = {
   user: null,
   accessToken: localStorage.getItem('access_token') || '',
   refreshToken: localStorage.getItem('refresh_token') || '',
+  unreadMessages: 0,
+  unreadNotifications: 0,
 };
 
 // ─── API Client ──────────────────────────────────────────────────
@@ -1912,14 +1914,19 @@ window.addEventListener('load', async () => {
   navigate();
   // Poll unread counts
   if (state.user) {
-    setInterval(async () => {
+    const refreshUnread = async () => {
       try {
         const [n, m] = await Promise.all([
           api('/notifications/unread-count').catch(() => ({ count: 0 })),
           api('/messages/unread-count').catch(() => ({ count: 0 })),
         ]);
+        state.unreadNotifications = n.count;
+        state.unreadMessages = m.count;
+        renderNav();
       } catch {}
-    }, 30000);
+    };
+    refreshUnread();
+    setInterval(refreshUnread, 30000);
   }
 });
 
