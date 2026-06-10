@@ -1573,8 +1573,13 @@ async function userProfilePage(el, params) {
 
   function setActiveTab(t) {
     tab = t;
-    document.getElementById('tabItems').className = `btn btn-sm ${tab === 'items' ? 'btn-primary' : 'btn-ghost'}`;
-    document.getElementById('tabReviews').className = `btn btn-sm ${tab === 'reviews' ? 'btn-primary' : 'btn-ghost'}`;
+    const itemsBtn = document.getElementById('tabItems');
+    const reviewsBtn = document.getElementById('tabReviews');
+    if (!itemsBtn || !reviewsBtn) return;
+    itemsBtn.classList.toggle('btn-primary', tab === 'items');
+    itemsBtn.classList.toggle('btn-ghost', tab !== 'items');
+    reviewsBtn.classList.toggle('btn-primary', tab === 'reviews');
+    reviewsBtn.classList.toggle('btn-ghost', tab !== 'reviews');
     renderTabContent();
   }
 
