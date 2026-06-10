@@ -1571,24 +1571,13 @@ async function userProfilePage(el, params) {
 
   let tab = 'items';
 
-  function renderTabs() {
-    const tabsEl = document.querySelector('.profile-tabs');
-    if (!tabsEl) return;
-    tabsEl.innerHTML = `
-      <button class="btn btn-sm ${tab === 'items' ? 'btn-primary' : 'btn-ghost'}" id="tabItems">物品 (${profile.item_count})</button>
-      <button class="btn btn-sm ${tab === 'reviews' ? 'btn-primary' : 'btn-ghost'}" id="tabReviews">評價 (${reviews.total || 0})</button>`;
-    document.getElementById('tabItems').onclick = () => setActiveTab('items');
-    document.getElementById('tabReviews').onclick = () => setActiveTab('reviews');
-  }
-
   function setActiveTab(t) {
     tab = t;
-    // Delay DOM rebuild to next frame so mobile browsers finish
-    // their touch sequence before the touched button is destroyed
-    requestAnimationFrame(() => {
-      renderTabs();
-      renderTabContent();
-    });
+    // Only update data-active attribute — no DOM rebuild, no class change,
+    // no element destruction. CSS attribute selectors handle the visual.
+    const tabsEl = document.querySelector('.profile-tabs');
+    if (tabsEl) tabsEl.dataset.active = t;
+    renderTabContent();
   }
 
   function renderTabContent() {
@@ -1625,10 +1614,14 @@ async function userProfilePage(el, params) {
         </div>
       </div>
     </div>
-    <div class="profile-tabs"></div>
+    <div class="profile-tabs" data-active="items">
+      <button class="btn btn-sm btn-tab" data-tab="items">物品 (${profile.item_count})</button>
+      <button class="btn btn-sm btn-tab" data-tab="reviews">評價 (${reviews.total || 0})</button>
+    </div>
     <div id="profileTabContent"></div>`;
 
-  renderTabs();
+  document.querySelector('[data-tab="items"]').onclick = () => setActiveTab('items');
+  document.querySelector('[data-tab="reviews"]').onclick = () => setActiveTab('reviews');
   renderTabContent();
 }
 
