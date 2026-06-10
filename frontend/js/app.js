@@ -970,7 +970,7 @@ async function itemCreatePage(el) {
       <form id="createForm" class="card" style="padding:24px">
         <div class="form-group"><label>標題 *</label><input type="text" id="itemTitle" required maxlength="200" placeholder="例：ZTMY 2024 巡演限定貼紙" /></div>
         <div class="form-group"><label>描述</label><textarea id="itemDesc" placeholder="物品的詳細描述..."></textarea></div>
-        <div class="form-group"><label>類別 *</label><select id="itemCat"><option value="">請選擇類別</option>${categoryOptionsHtml()}</select></div>
+        <div class="form-group"><label>類別 *</label><select id="itemCat"><option value="" disabled selected>請選擇類別</option>${categoryOptionsHtml()}</select></div>
         <div class="form-group"><label>交換方式 *</label><select id="itemMode"><option value="swap">互換（需提供自己的物品）</option><option value="reach_out">伸手（可直接索要）</option></select></div>
         <div class="form-group"><label>庫存（留空為無限）</label><input type="number" id="itemStock" min="1" placeholder="留空表示無限供應" /></div>
         <div class="form-group"><label>想交換什麼</label><textarea id="itemWanted" placeholder="描述你希望換到什麼..."></textarea></div>
@@ -1019,7 +1019,7 @@ async function itemEditPage(el, params) {
       <form id="editForm" class="card" style="padding:24px">
         <div class="form-group"><label>標題</label><input type="text" id="itemTitle" required maxlength="200" value="${escHtml(item.title)}" /></div>
         <div class="form-group"><label>描述</label><textarea id="itemDesc">${escHtml(item.description || '')}</textarea></div>
-        <div class="form-group"><label>類別</label><select id="itemCat"><option value="">請選擇類別</option>${categoryOptionsHtml(item.category)}</select></div>
+        <div class="form-group"><label>類別</label><select id="itemCat"><option value="" disabled>請選擇類別</option>${categoryOptionsHtml(item.category)}</select></div>
         <div class="form-group"><label>交換方式</label><select id="itemMode">
           <option value="swap" ${item.exchange_mode === 'swap' ? 'selected' : ''}>互換（需提供自己的物品）</option>
           <option value="reach_out" ${item.exchange_mode === 'reach_out' ? 'selected' : ''}>伸手（可直接索要）</option>
@@ -1708,9 +1708,10 @@ function initCustomSelects() {
     if (select.closest('.cusel')) return;
 
     const options = Array.from(select.options).map(opt => ({
-      value: opt.value, label: opt.textContent, selected: opt.selected
+      value: opt.value, label: opt.textContent, selected: opt.selected, disabled: opt.disabled
     }));
     const selected = options.find(o => o.selected) || options[0];
+    const enabledOptions = options.filter(o => !o.disabled);
     const wrapper = document.createElement('div');
     wrapper.className = 'cusel';
 
@@ -1720,7 +1721,7 @@ function initCustomSelects() {
 
     const drop = document.createElement('div');
     drop.className = 'cusel-drop';
-    drop.innerHTML = options.map(o =>
+    drop.innerHTML = enabledOptions.map(o =>
       `<div class="cusel-opt${o.selected ? ' sel' : ''}" data-value="${escHtml(o.value)}">${escHtml(o.label)}</div>`
     ).join('');
 
