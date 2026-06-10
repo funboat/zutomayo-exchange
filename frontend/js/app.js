@@ -1531,6 +1531,7 @@ async function notificationsPage(el) {
 
     document.getElementById('btnReadAll')?.addEventListener('click', async () => {
       await api('/notifications/read-all', { method: 'PUT' });
+      state.refreshUnread();
       load();
     });
 
@@ -1540,6 +1541,7 @@ async function notificationsPage(el) {
         const related = item.dataset.related;
         const type = item.dataset.type;
         await api(`/notifications/${nid}/read`, { method: 'PUT' });
+        state.refreshUnread();
         if (related && ['exchange_request','exchange_accepted','exchange_rejected','exchange_completed','cancel_requested','exchange_cancelled','cancel_rejected'].includes(type)) {
           location.hash = '#/exchanges/' + related;
         } else if (related && type === 'new_message') {
@@ -1787,6 +1789,7 @@ async function noticeDetailPage(el, params) {
         <div style="margin-top:16px"><a href="#/notifications" class="btn btn-ghost">← 返回通知列表</a></div>
       </div>`;
     await api('/notifications/' + params.id + '/read', { method: 'PUT' });
+    state.refreshUnread();
   } catch {
     el.innerHTML = '<div class="alert alert-error">通知不存在或無法存取</div>';
   }
