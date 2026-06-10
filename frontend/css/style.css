@@ -670,7 +670,10 @@ input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin
 .profile-tabs { display: flex; gap: 8px; margin-bottom: 20px; }
 .btn-tab { background: transparent; border-color: transparent; color: var(--text-secondary); }
 .profile-tabs[data-active="items"] [data-tab="items"],
-.profile-tabs[data-active="reviews"] [data-tab="reviews"] {
+.profile-tabs[data-active="reviews"] [data-tab="reviews"],
+.profile-tabs[data-active=""] [data-role=""],
+.profile-tabs[data-active="sent"] [data-role="sent"],
+.profile-tabs[data-active="received"] [data-role="received"] {
   background: linear-gradient(135deg, var(--accent-secondary), var(--accent));
   color: #fff; border-color: transparent;
   box-shadow: var(--shadow-glow);

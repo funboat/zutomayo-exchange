@@ -1254,17 +1254,21 @@ async function myExchangesPage(el) {
     const q = new URLSearchParams({ page, page_size: 20 });
     if (role) q.set('role', role);
     data = await api('/exchanges/?' + q.toString());
-    render();
+    renderContent();
   }
 
-  function render() {
-    el.innerHTML = `
-      <h1>我的交換</h1>
-      <div style="display:flex;gap:8px;margin-bottom:20px">
-        <button class="btn btn-sm ${!role ? 'btn-primary' : 'btn-ghost'}" data-role="">全部</button>
-        <button class="btn btn-sm ${role === 'sent' ? 'btn-primary' : 'btn-ghost'}" data-role="sent">已發送</button>
-        <button class="btn btn-sm ${role === 'received' ? 'btn-primary' : 'btn-ghost'}" data-role="received">已收到</button>
-      </div>
+  function setRole(r) {
+    role = r;
+    const bar = document.getElementById('exchangeTabs');
+    if (bar) bar.dataset.active = r;
+    page = 1;
+    load();
+  }
+
+  function renderContent() {
+    const list = document.getElementById('exchangeList');
+    if (!list) return;
+    list.innerHTML = `
       ${data.items.length
         ? data.items.map(ex => `
           <a href="#/exchanges/${ex.id}" class="card" style="display:block;text-decoration:none;color:var(--text);margin-bottom:10px">
@@ -1275,14 +1279,25 @@ async function myExchangesPage(el) {
             <div>
               <span style="color:var(--text-secondary);font-size:0.85rem">${ex.from_user_id === state.user.id ? '你' : escHtml(ex.from_user_nickname)} ${ex.to_item_exchange_mode === 'reach_out' ? '伸手索要' : '想要'}</span>
               <strong> ${escHtml(ex.to_item_title)}</strong>
-              ${ex.from_item_title ? ` <span style="color:var(--text-muted)">↔ 提供 ${escHtml(ex.from_item_title)}</span>` : ''}
+              ${ex.from_item_title ? `<span style="color:var(--text-muted)">↔ 提供 ${escHtml(ex.from_item_title)}</span>` : ''}
             </div>
           </a>`).join('')
         : '<div class="empty-state"><p>暫無交換紀錄</p></div>'}
       ${pagination(page, data.total_pages, (p) => { page = p; load(); })}`;
-
-    el.querySelectorAll('[data-role]').forEach(b => b.onclick = () => { role = b.dataset.role; page = 1; load(); });
   }
+
+  el.innerHTML = `
+    <h1>我的交換</h1>
+    <div class="profile-tabs" id="exchangeTabs" data-active="">
+      <button class="btn btn-sm btn-tab" data-role="">全部</button>
+      <button class="btn btn-sm btn-tab" data-role="sent">已發送</button>
+      <button class="btn btn-sm btn-tab" data-role="received">已收到</button>
+    </div>
+    <div id="exchangeList"></div>`;
+
+  document.querySelectorAll('#exchangeTabs [data-role]').forEach(b => {
+    b.onclick = () => setRole(b.dataset.role);
+  });
 
   await load();
 }
