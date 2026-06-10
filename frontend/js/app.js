@@ -790,7 +790,7 @@ function bindFilterEvents(filters, loadFn) {
   const mode = document.getElementById('filterMode');
   const sort = document.getElementById('filterSort');
   const status = document.getElementById('filterStatus');
-  const handler = () => { filters.search = search?.value || ''; filters.category = cat?.value || ''; filters.status = status?.value || 'available'; filters.exchange_mode = mode?.value || ''; filters.sort_by = sort?.value || 'newest'; filters.page = 1; loadFn(); };
+  const handler = () => { filters.search = search?.value || ''; filters.category = cat?.value || ''; filters.status = status?.value ?? ''; filters.exchange_mode = mode?.value || ''; filters.sort_by = sort?.value || 'newest'; filters.page = 1; loadFn(); };
   if (search) { let t; search.oninput = () => { clearTimeout(t); t = setTimeout(handler, 300); }; }
   if (cat) cat.onchange = handler;
   if (status) status.onchange = handler;
