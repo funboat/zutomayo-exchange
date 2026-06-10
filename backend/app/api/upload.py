@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, UploadFile, File
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.api.deps import require_user
-from app.utils.image_hosting import save_avatar
+from app.utils.image_hosting import save_avatar, save_image
 from app.models.user import User
 
 router = APIRouter(prefix="/upload", tags=["upload"])
