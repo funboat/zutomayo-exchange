@@ -89,6 +89,7 @@ async def get_reviews(
         reviewer = await db.get(User, r.reviewer_id)
         items.append({
             "id": r.id,
+            "reviewer_id": r.reviewer_id,
             "reviewer_nickname": reviewer.nickname if reviewer else None,
             "rating": r.rating,
             "comment": r.comment,

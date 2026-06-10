@@ -1305,7 +1305,16 @@ async function exchangeDetailPage(el, params) {
     actions += `<button class="btn btn-ghost" id="btnRequestCancel">提出取消</button>`;
   }
   if (ex.status === 'completed') {
-    actions += `<button class="btn btn-primary" id="btnReview">評價</button>`;
+    let alreadyReviewed = false;
+    try {
+      const reviews = await api('/reviews/exchanges/' + ex.id);
+      alreadyReviewed = reviews.some(r => r.reviewer_id === state.user?.id);
+    } catch {}
+    if (alreadyReviewed) {
+      actions += `<button class="btn btn-primary" disabled style="opacity:0.5;cursor:not-allowed">已評價</button>`;
+    } else {
+      actions += `<button class="btn btn-primary" id="btnReview">評價</button>`;
+    }
   }
   if (ex.status === 'cancel_requested') {
     const isRequester = ex.cancel_requested_by === state.user?.id;
