@@ -235,13 +235,22 @@ let catLabels = {};
 let catOptions = [];
 
 async function loadCategories() {
+  if (catOptions.length > 0) return catOptions;
   try {
     const cats = await api('/categories/');
     catLabels = {};
     catOptions = cats;
     cats.forEach(c => { catLabels[c.key] = c.label; });
-  } catch { /* keep defaults */ }
+    return cats;
+  } catch { return []; }
 }
+
+function categoryOptionsHtml(selectedKey) {
+  return catOptions.map(c =>
+    `<option value="${c.key}" ${c.key === selectedKey ? 'selected' : ''}>${escHtml(c.label)}</option>`
+  ).join('');
+}
+
 const modeLabels = { reach_out: '可伸手', swap: '需互換' };
 const statusLabels = { available: '可交換', reserved: '已預留', exchanged: '已交換', pending: '待確認', accepted: '已接受', rejected: '已拒絕', cancelled: '已取消', cancel_requested: '申請取消中', completed: '已完成' };const typeMap = { exchange_request: '交換請求', exchange_accepted: '已接受', exchange_rejected: '已拒絕', exchange_completed: '已完成', cancel_requested: '取消申請', exchange_cancelled: '已取消', cancel_rejected: '取消被拒', new_message: '新訊息', new_review: '新評價', item_deleted: '物品已刪除' };
 
@@ -952,6 +961,7 @@ async function itemDetailPage(el, params) {
 
 // ─── PAGE: Item Create ───────────────────────────────────────────
 async function itemCreatePage(el) {
+  await loadCategories();
   let images = [];
   el.innerHTML = `
     <div style="max-width:600px;margin:0 auto">
@@ -960,7 +970,7 @@ async function itemCreatePage(el) {
       <form id="createForm" class="card" style="padding:24px">
         <div class="form-group"><label>標題 *</label><input type="text" id="itemTitle" required maxlength="200" placeholder="例：ZTMY 2024 巡演限定貼紙" /></div>
         <div class="form-group"><label>描述</label><textarea id="itemDesc" placeholder="物品的詳細描述..."></textarea></div>
-        <div class="form-group"><label>類別 *</label><select id="itemCat"><option value="cd">CD</option><option value="goods">周邊</option><option value="poster">海報</option><option value="other">其他</option></select></div>
+        <div class="form-group"><label>類別 *</label><select id="itemCat"><option value="">請選擇類別</option>${categoryOptionsHtml()}</select></div>
         <div class="form-group"><label>交換方式 *</label><select id="itemMode"><option value="swap">互換（需提供自己的物品）</option><option value="reach_out">伸手（可直接索要）</option></select></div>
         <div class="form-group"><label>庫存（留空為無限）</label><input type="number" id="itemStock" min="1" placeholder="留空表示無限供應" /></div>
         <div class="form-group"><label>想交換什麼</label><textarea id="itemWanted" placeholder="描述你希望換到什麼..."></textarea></div>
@@ -976,11 +986,13 @@ async function itemCreatePage(el) {
   document.getElementById('createForm').onsubmit = async (e) => {
     e.preventDefault();
     const errEl = document.getElementById('createError');
+    const cat = document.getElementById('itemCat').value;
+    if (!cat) { errEl.innerHTML = '<div class="alert alert-error">請選擇類別</div>'; return; }
     try {
       const item = await api('/items/', { method: 'POST', body: {
         title: document.getElementById('itemTitle').value,
         description: document.getElementById('itemDesc').value,
-        category: document.getElementById('itemCat').value,
+        category: cat,
         exchange_mode: document.getElementById('itemMode').value,
         stock: document.getElementById('itemStock').value ? parseInt(document.getElementById('itemStock').value) : null,
         wanted_items: document.getElementById('itemWanted').value,
@@ -994,7 +1006,10 @@ async function itemCreatePage(el) {
 
 // ─── PAGE: Item Edit ─────────────────────────────────────────────
 async function itemEditPage(el, params) {
-  const item = await api('/items/' + params.id);
+  const [, item] = await Promise.all([
+    loadCategories(),
+    api('/items/' + params.id),
+  ]);
   let images = [...(item.images || [])];
 
   el.innerHTML = `
@@ -1004,7 +1019,7 @@ async function itemEditPage(el, params) {
       <form id="editForm" class="card" style="padding:24px">
         <div class="form-group"><label>標題</label><input type="text" id="itemTitle" required maxlength="200" value="${escHtml(item.title)}" /></div>
         <div class="form-group"><label>描述</label><textarea id="itemDesc">${escHtml(item.description || '')}</textarea></div>
-        <div class="form-group"><label>類別</label><select id="itemCat"><option value="cd" ${item.category==='cd'?'selected':''}>CD</option><option value="goods" ${item.category==='goods'?'selected':''}>周邊</option><option value="poster" ${item.category==='poster'?'selected':''}>海報</option><option value="other" ${item.category==='other'?'selected':''}>其他</option></select></div>
+        <div class="form-group"><label>類別</label><select id="itemCat"><option value="">請選擇類別</option>${categoryOptionsHtml(item.category)}</select></div>
         <div class="form-group"><label>交換方式</label><select id="itemMode">
           <option value="swap" ${item.exchange_mode === 'swap' ? 'selected' : ''}>互換（需提供自己的物品）</option>
           <option value="reach_out" ${item.exchange_mode === 'reach_out' ? 'selected' : ''}>伸手（可直接索要）</option>
@@ -1023,11 +1038,13 @@ async function itemEditPage(el, params) {
   document.getElementById('editForm').onsubmit = async (e) => {
     e.preventDefault();
     const errEl = document.getElementById('editError');
+    const cat = document.getElementById('itemCat').value;
+    if (!cat) { errEl.innerHTML = '<div class="alert alert-error">請選擇類別</div>'; return; }
     try {
       await api('/items/' + params.id, { method: 'PUT', body: {
         title: document.getElementById('itemTitle').value,
         description: document.getElementById('itemDesc').value,
-        category: document.getElementById('itemCat').value,
+        category: cat,
         exchange_mode: document.getElementById('itemMode').value,
         stock: document.getElementById('itemStock').value ? parseInt(document.getElementById('itemStock').value) : null,
         wanted_items: document.getElementById('itemWanted').value,
