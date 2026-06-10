@@ -869,12 +869,18 @@ async function itemDetailPage(el, params) {
     }
 
     // Arrows (detail view)
+    let flashTimer;
+    function flashArrows() {
+      gallery.classList.add('show-arrows');
+      clearTimeout(flashTimer);
+      flashTimer = setTimeout(() => gallery.classList.remove('show-arrows'), 2500);
+    }
     if (hasMulti) {
-      document.getElementById('galPrev').onclick = (e) => { e.stopPropagation(); setImage(parseInt(gallery.dataset.idx) - 1); };
-      document.getElementById('galNext').onclick = (e) => { e.stopPropagation(); setImage(parseInt(gallery.dataset.idx) + 1); };
+      document.getElementById('galPrev').onclick = (e) => { e.stopPropagation(); setImage(parseInt(gallery.dataset.idx) - 1); flashArrows(); };
+      document.getElementById('galNext').onclick = (e) => { e.stopPropagation(); setImage(parseInt(gallery.dataset.idx) + 1); flashArrows(); };
       // Thumbnails
       document.querySelectorAll('#galleryThumbs img').forEach(t => {
-        t.onclick = () => setImage(parseInt(t.dataset.idx));
+        t.onclick = () => { setImage(parseInt(t.dataset.idx)); flashArrows(); };
       });
     }
 
@@ -928,7 +934,8 @@ async function itemDetailPage(el, params) {
       });
     }
 
-    // Click main image → lightbox
+    // Touch/click main image → flash arrows, open lightbox on tap
+    gallery.addEventListener('touchstart', () => { if (hasMulti) flashArrows(); }, { passive: true });
     gallery.onclick = (e) => {
       if (e.target.closest('.gallery-arrow')) return;
       openLightbox(parseInt(gallery.dataset.idx));
