@@ -26,3 +26,6 @@ backend/alembic/versions/*.py
 
 # Docker
 pgdata/
+
+# User uploads
+backend/uploads/
