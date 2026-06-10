@@ -1019,7 +1019,7 @@ async function itemEditPage(el, params) {
       <form id="editForm" class="card" style="padding:24px">
         <div class="form-group"><label>標題</label><input type="text" id="itemTitle" required maxlength="200" value="${escHtml(item.title)}" /></div>
         <div class="form-group"><label>描述</label><textarea id="itemDesc">${escHtml(item.description || '')}</textarea></div>
-        <div class="form-group"><label>類別</label><select id="itemCat"><option value="" disabled>請選擇類別</option>${categoryOptionsHtml(item.category)}</select></div>
+        <div class="form-group"><label>類別</label><select id="itemCat">${categoryOptionsHtml(item.category)}</select></div>
         <div class="form-group"><label>交換方式</label><select id="itemMode">
           <option value="swap" ${item.exchange_mode === 'swap' ? 'selected' : ''}>互換（需提供自己的物品）</option>
           <option value="reach_out" ${item.exchange_mode === 'reach_out' ? 'selected' : ''}>伸手（可直接索要）</option>
@@ -1706,7 +1706,7 @@ function initCustomSelects() {
     const options = Array.from(select.options).map(opt => ({
       value: opt.value, label: opt.textContent, selected: opt.selected, disabled: opt.disabled
     }));
-    const selected = options.find(o => o.selected) || options[0];
+    const selected = options.find(o => o.selected) || options.find(o => !o.disabled) || options[0];
     const enabledOptions = options.filter(o => !o.disabled);
     const wrapper = document.createElement('div');
     wrapper.className = 'cusel';
