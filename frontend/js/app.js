@@ -801,8 +801,9 @@ function bindFilterEvents(filters, loadFn) {
 // ─── PAGE: Item Detail ───────────────────────────────────────────
 async function itemDetailPage(el, params) {
   const item = await api('/items/' + params.id);
-  const mainImg = item.images?.length ? `<img src="${escHtml(item.images[0])}" alt="" />` : '<div class="no-img" style="color:var(--text-muted)">無圖片</div>';
-  const thumbs = (item.images?.length > 1) ? item.images.map((u, i) => `<img src="${escHtml(u)}" alt="" onclick="this.closest('.detail-grid').querySelector('.detail-image img').src='${escHtml(u)}'" />`).join('') : '';
+  const images = item.images || [];
+  const hasMulti = images.length > 1;
+
   const statusCls = item.status === 'available' ? 'tag-available' : item.status === 'reserved' ? 'tag-reserved' : 'tag-exchanged';
 
   let actions = '';
@@ -827,8 +828,11 @@ async function itemDetailPage(el, params) {
   el.innerHTML = `
     <div class="detail-grid">
       <div>
-        <div class="detail-image">${mainImg}</div>
-        ${thumbs ? `<div class="detail-thumbs">${thumbs}</div>` : ''}
+        <div class="detail-image" id="galleryMain" data-idx="0" style="cursor:${hasMulti ? 'pointer' : 'zoom-in'}">
+          ${images.length ? `<img src="${escHtml(images[0])}" alt="" id="galleryImg" />` : '<div class="no-img" style="color:var(--text-muted)">無圖片</div>'}
+          ${hasMulti ? `<button class="gallery-arrow prev" id="galPrev">‹</button><button class="gallery-arrow next" id="galNext">›</button>` : ''}
+        </div>
+        ${hasMulti ? `<div class="detail-thumbs" id="galleryThumbs">${images.map((u, i) => `<img src="${escHtml(u)}" alt="" data-idx="${i}" class="${i === 0 ? 'active' : ''}" />`).join('')}</div>` : ''}
       </div>
       <div>
         <h1>${escHtml(item.title)}</h1>
@@ -850,6 +854,74 @@ async function itemDetailPage(el, params) {
         <div id="exchangeForm" style="display:none;margin-top:14px;"></div>
       </div>
     </div>`;
+
+  // ── Gallery ────────────────────────────────────────────────────
+  if (images.length) {
+    const gallery = document.getElementById('galleryMain');
+    const img = document.getElementById('galleryImg');
+
+    function setImage(idx) {
+      const i = ((idx % images.length) + images.length) % images.length;
+      gallery.dataset.idx = i;
+      if (img) img.src = images[i];
+      const thumbs = document.querySelectorAll('#galleryThumbs img');
+      thumbs.forEach(t => t.classList.toggle('active', parseInt(t.dataset.idx) === i));
+    }
+
+    // Arrows (detail view)
+    if (hasMulti) {
+      document.getElementById('galPrev').onclick = (e) => { e.stopPropagation(); setImage(parseInt(gallery.dataset.idx) - 1); };
+      document.getElementById('galNext').onclick = (e) => { e.stopPropagation(); setImage(parseInt(gallery.dataset.idx) + 1); };
+      // Thumbnails
+      document.querySelectorAll('#galleryThumbs img').forEach(t => {
+        t.onclick = () => setImage(parseInt(t.dataset.idx));
+      });
+    }
+
+    // Lightbox
+    function openLightbox(startIdx) {
+      let lbIdx = startIdx;
+      const lb = document.createElement('div');
+      lb.className = 'lightbox';
+      lb.innerHTML = `
+        <button class="lightbox-close">✕</button>
+        <button class="gallery-arrow prev">‹</button>
+        <img src="${escHtml(images[lbIdx])}" alt="" id="lbImg" />
+        <button class="gallery-arrow next">›</button>
+        <div class="lightbox-counter">${lbIdx + 1} / ${images.length}</div>`;
+      document.body.appendChild(lb);
+      document.body.style.overflow = 'hidden';
+
+      function lbSet(i) {
+        lbIdx = ((i % images.length) + images.length) % images.length;
+        document.getElementById('lbImg').src = images[lbIdx];
+        lb.querySelector('.lightbox-counter').textContent = `${lbIdx + 1} / ${images.length}`;
+      }
+
+      function close() { lb.remove(); document.body.style.overflow = ''; }
+      lb.querySelector('.lightbox-close').onclick = close;
+      lb.addEventListener('click', (e) => { if (e.target === lb) close(); });
+      lb.querySelector('.gallery-arrow.prev').onclick = (e) => { e.stopPropagation(); lbSet(lbIdx - 1); };
+      lb.querySelector('.gallery-arrow.next').onclick = (e) => { e.stopPropagation(); lbSet(lbIdx + 1); };
+
+      // Keyboard
+      const onKey = (e) => { if (e.key === 'Escape') { close(); document.removeEventListener('keydown', onKey); } if (e.key === 'ArrowLeft') lbSet(lbIdx - 1); if (e.key === 'ArrowRight') lbSet(lbIdx + 1); };
+      document.addEventListener('keydown', onKey);
+      // Touch swipe
+      let touchX = 0;
+      lb.addEventListener('touchstart', (e) => { touchX = e.touches[0].clientX; }, { passive: true });
+      lb.addEventListener('touchend', (e) => {
+        const dx = e.changedTouches[0].clientX - touchX;
+        if (Math.abs(dx) > 50) lbSet(lbIdx + (dx > 0 ? -1 : 1));
+      });
+    }
+
+    // Click main image → lightbox
+    gallery.onclick = (e) => {
+      if (e.target.closest('.gallery-arrow')) return;
+      openLightbox(parseInt(gallery.dataset.idx));
+    };
+  }
 
   // Fav button
   if (state.user && item.owner_id !== state.user.id) {
