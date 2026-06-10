@@ -1049,23 +1049,26 @@ function renderImageUploader(images) {
         <img src="${escHtml(url)}" alt="" />
         <button type="button" class="remove-btn" data-idx="${i}">×</button>
       </div>`).join('')
-      + (images.length < 5 ? `<label class="upload-zone">+ 上傳<input type="file" accept="image/jpeg,image/png,image/webp,image/gif" id="uploadInput" /></label>` : '');
+      + (images.length < 5 ? `<label class="upload-zone" id="uploadLabel">+ 上傳<input type="file" accept="image/jpeg,image/png,image/webp,image/gif" id="uploadInput" /></label>` : '');
 
     el.querySelectorAll('.remove-btn').forEach(b => b.onclick = () => { images.splice(parseInt(b.dataset.idx), 1); render(); });
+    const label = document.getElementById('uploadLabel');
     const inp = document.getElementById('uploadInput');
-    if (inp) inp.onchange = async () => {
-      const file = inp.files[0];
-      if (!file) return;
-      const formData = new FormData();
-      formData.append('file', file);
-      try {
-        const res = await api('/upload/image', { method: 'POST', body: formData });
-        images.push(res.url);
-        render();
-        toast('上傳成功', 'info');
-      } catch (e) { toast(e.detail || '上傳失敗', 'error'); }
-    };
-  }
+    if (label && inp) {
+      label.onclick = (e) => { e.preventDefault(); inp.click(); };
+      inp.onchange = async () => {
+        const file = inp.files[0];
+        if (!file) return;
+        const formData = new FormData();
+        formData.append('file', file);
+        try {
+          const res = await api('/upload/image', { method: 'POST', body: formData });
+          images.push(res.url);
+          render();
+          toast('上傳成功', 'info');
+        } catch (e) { toast(e.detail || '上傳失敗', 'error'); }
+      };
+    }
   render();
 }
 
