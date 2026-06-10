@@ -881,6 +881,7 @@ async function itemDetailPage(el, params) {
     // Lightbox
     function openLightbox(startIdx) {
       let lbIdx = startIdx;
+      let idleTimer;
       const lb = document.createElement('div');
       lb.className = 'lightbox';
       lb.innerHTML = `
@@ -892,13 +893,24 @@ async function itemDetailPage(el, params) {
       document.body.appendChild(lb);
       document.body.style.overflow = 'hidden';
 
+      // Idle auto-hide arrows on mobile
+      function resetIdle() {
+        lb.classList.remove('idle');
+        clearTimeout(idleTimer);
+        idleTimer = setTimeout(() => lb.classList.add('idle'), 3000);
+      }
+      resetIdle();
+      lb.addEventListener('touchstart', resetIdle, { passive: true });
+      lb.addEventListener('mousemove', () => { lb.classList.remove('idle'); clearTimeout(idleTimer); });
+
       function lbSet(i) {
         lbIdx = ((i % images.length) + images.length) % images.length;
         document.getElementById('lbImg').src = images[lbIdx];
         lb.querySelector('.lightbox-counter').textContent = `${lbIdx + 1} / ${images.length}`;
+        resetIdle();
       }
 
-      function close() { lb.remove(); document.body.style.overflow = ''; }
+      function close() { clearTimeout(idleTimer); lb.remove(); document.body.style.overflow = ''; }
       lb.querySelector('.lightbox-close').onclick = close;
       lb.addEventListener('click', (e) => { if (e.target === lb) close(); });
       lb.querySelector('.gallery-arrow.prev').onclick = (e) => { e.stopPropagation(); lbSet(lbIdx - 1); };
