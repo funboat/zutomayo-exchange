@@ -1086,6 +1086,7 @@ function renderImageUploader(images) {
         } catch (e) { toast(e.detail || '上傳失敗', 'error'); }
       };
     }
+  }
   render();
 }
 
