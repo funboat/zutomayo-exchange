@@ -673,7 +673,9 @@ input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin
 .profile-tabs[data-active="reviews"] [data-tab="reviews"],
 .profile-tabs[data-active=""] [data-role=""],
 .profile-tabs[data-active="sent"] [data-role="sent"],
-.profile-tabs[data-active="received"] [data-role="received"] {
+.profile-tabs[data-active="received"] [data-role="received"],
+.profile-tabs[data-active="detail"] [data-ex-tab="detail"],
+.profile-tabs[data-active="chat"] [data-ex-tab="chat"] {
   background: linear-gradient(135deg, var(--accent-secondary), var(--accent));
   color: #fff; border-color: transparent;
   box-shadow: var(--shadow-glow);

@@ -1307,47 +1307,48 @@ async function myExchangesPage(el) {
 
 // ─── PAGE: Exchange Detail ───────────────────────────────────────
 async function exchangeDetailPage(el, params) {
-  const ex = await api('/exchanges/' + params.id);
+  const [ex, msgs] = await Promise.all([
+    api('/exchanges/' + params.id),
+    api('/messages/exchanges/' + params.id).catch(() => []),
+  ]);
 
-  let actions = '';
+  let tab = 'detail';
+  let poll;
+
   const isFrom = ex.from_user_id === state.user?.id;
   const isTo = ex.to_user_id === state.user?.id;
 
-  if (isTo && ex.status === 'pending') {
-    actions += `<button class="btn btn-primary" id="btnAccept">接受</button>`;
-    actions += `<button class="btn btn-danger" id="btnReject">拒絕</button>`;
+  function setTab(t) {
+    tab = t;
+    document.getElementById('exTabs').dataset.active = t;
+    renderTabContent();
   }
-  if (isFrom && ex.status === 'pending') {
-    actions += `<button class="btn btn-ghost" id="btnCancel">取消請求</button>`;
-  }
-  if (ex.status === 'accepted') {
-    actions += `<button class="btn btn-primary" id="btnComplete">標記完成</button>`;
-    actions += `<button class="btn btn-ghost" id="btnRequestCancel">提出取消</button>`;
-  }
-  if (ex.status === 'completed') {
-    let alreadyReviewed = false;
-    try {
-      const reviews = await api('/reviews/exchanges/' + ex.id);
-      alreadyReviewed = reviews.some(r => r.reviewer_id === state.user?.id);
-    } catch {}
-    if (alreadyReviewed) {
-      actions += `<button class="btn btn-primary" disabled style="opacity:0.5;cursor:not-allowed">已評價</button>`;
-    } else {
+
+  function renderDetail() {
+    let actions = '';
+    if (isTo && ex.status === 'pending') {
+      actions += `<button class="btn btn-primary" id="btnAccept">接受</button>`;
+      actions += `<button class="btn btn-danger" id="btnReject">拒絕</button>`;
+    }
+    if (isFrom && ex.status === 'pending') {
+      actions += `<button class="btn btn-ghost" id="btnCancel">取消請求</button>`;
+    }
+    if (ex.status === 'accepted') {
+      actions += `<button class="btn btn-primary" id="btnComplete">標記完成</button>`;
+      actions += `<button class="btn btn-ghost" id="btnRequestCancel">提出取消</button>`;
+    }
+    if (ex.status === 'completed') {
       actions += `<button class="btn btn-primary" id="btnReview">評價</button>`;
     }
-  }
-  if (ex.status === 'cancel_requested') {
-    const isRequester = ex.cancel_requested_by === state.user?.id;
-    if (!isRequester) {
-      actions += `<button class="btn btn-primary" id="btnApproveCancel">同意取消</button>`;
-      actions += `<button class="btn btn-danger" id="btnRejectCancel">拒絕取消</button>`;
+    if (ex.status === 'cancel_requested') {
+      const isRequester = ex.cancel_requested_by === state.user?.id;
+      if (!isRequester) {
+        actions += `<button class="btn btn-primary" id="btnApproveCancel">同意取消</button>`;
+        actions += `<button class="btn btn-danger" id="btnRejectCancel">拒絕取消</button>`;
+      }
     }
-  }
-  actions += `<a href="#/messages/${ex.id}" class="btn btn-ghost">查看訊息</a>`;
 
-  el.innerHTML = `
-    <h1>交換詳情</h1>
-    <div class="card" style="max-width:640px;margin:0 auto">
+    document.getElementById('exTabContent').innerHTML = `
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
         ${statusBadge(ex.status)}
         <span style="font-size:0.85rem;color:var(--text-muted)">${formatDate(ex.created_at)}</span>
@@ -1374,37 +1375,100 @@ async function exchangeDetailPage(el, params) {
            </div>`
         : ''}
       ${ex.message ? `<div style="margin-top:14px;padding:12px;background:var(--bg);border-radius:var(--radius-sm)"><strong style="color:var(--text-secondary)">交換訊息：</strong>${escHtml(ex.message)}</div>` : ''}
-      <div style="display:flex;gap:10px;margin-top:18px;flex-wrap:wrap">${actions}</div>
-    </div>`;
+      <div style="display:flex;gap:10px;margin-top:18px;flex-wrap:wrap">${actions}</div>`;
 
-  const act = async (action, body) => {
-    try { await api(`/exchanges/${ex.id}/${action}`, { method: 'PUT', body }); toast('操作成功', 'info'); exchangeDetailPage(el, params); } catch (e) { toast(e.detail || '操作失敗', 'error'); }
-  };
-  document.getElementById('btnAccept')?.addEventListener('click', () => act('accept'));
-  document.getElementById('btnReject')?.addEventListener('click', () => act('reject'));
-  document.getElementById('btnCancel')?.addEventListener('click', () => act('cancel'));
-  document.getElementById('btnComplete')?.addEventListener('click', () => act('complete'));
-  document.getElementById('btnRequestCancel')?.addEventListener('click', async () => {
-    const res = await showConfirm({ title: '提出取消申請', message: '確定要取消這個交換嗎？請說明原因：', showReason: true, confirmText: '提出申請' });
-    if (res.confirmed && res.reason) {
-      await act('request-cancel', { reason: res.reason });
-    } else if (res.confirmed && !res.reason) {
-      toast('請提供取消理由', 'warning');
-    }
-  });
-  document.getElementById('btnApproveCancel')?.addEventListener('click', () => act('approve-cancel'));
-  document.getElementById('btnRejectCancel')?.addEventListener('click', () => act('reject-cancel'));
-  document.getElementById('btnReview')?.addEventListener('click', async () => {
-    const targetNickname = isFrom ? ex.to_user_nickname : ex.from_user_nickname;
-    const result = await showReview({ nickname: targetNickname });
-    if (result) {
+    // Bind action buttons
+    const act = async (action, body) => {
+      try { await api(`/exchanges/${ex.id}/${action}`, { method: 'PUT', body }); toast('操作成功', 'info'); exchangeDetailPage(el, params); } catch (e) { toast(e.detail || '操作失敗', 'error'); }
+    };
+    document.getElementById('btnAccept')?.addEventListener('click', () => act('accept'));
+    document.getElementById('btnReject')?.addEventListener('click', () => act('reject'));
+    document.getElementById('btnCancel')?.addEventListener('click', () => act('cancel'));
+    document.getElementById('btnComplete')?.addEventListener('click', () => act('complete'));
+    document.getElementById('btnRequestCancel')?.addEventListener('click', async () => {
+      const res = await showConfirm({ title: '提出取消申請', message: '確定要取消這個交換嗎？請說明原因：', showReason: true, confirmText: '提出申請' });
+      if (res.confirmed && res.reason) { await act('request-cancel', { reason: res.reason }); }
+      else if (res.confirmed && !res.reason) { toast('請提供取消理由', 'warning'); }
+    });
+    document.getElementById('btnApproveCancel')?.addEventListener('click', () => act('approve-cancel'));
+    document.getElementById('btnRejectCancel')?.addEventListener('click', () => act('reject-cancel'));
+    document.getElementById('btnReview')?.addEventListener('click', async () => {
+      let alreadyReviewed = false;
+      try { const reviews = await api('/reviews/exchanges/' + ex.id); alreadyReviewed = reviews.some(r => r.reviewer_id === state.user?.id); } catch {}
+      if (alreadyReviewed) { toast('已評價過此交換', 'info'); return; }
+      const targetNickname = isFrom ? ex.to_user_nickname : ex.from_user_nickname;
+      const result = await showReview({ nickname: targetNickname });
+      if (result) {
+        try {
+          await api('/reviews/', { method: 'POST', body: { exchange_request_id: ex.id, rating: result.rating, comment: result.comment } });
+          toast('評價成功', 'info');
+          exchangeDetailPage(el, params);
+        } catch (e) { toast(e.detail || '評價失敗', 'error'); }
+      }
+    });
+  }
+
+  function renderChat() {
+    document.getElementById('exTabContent').innerHTML = `
+      <div class="chat-messages" id="chatMessages">
+        ${msgs.length ? msgs.map(m => `
+          <div class="chat-msg ${m.sender_id === state.user?.id ? 'chat-msg-mine' : 'chat-msg-other'}">
+            <div class="chat-msg-sender">${escHtml(m.sender_nickname)}</div>
+            <div class="chat-msg-bubble">${escHtml(m.content)}</div>
+            <div class="chat-msg-time">${formatDateTime(m.created_at)}</div>
+          </div>`).join('') : '<div class="empty-state" style="padding:28px"><p>還沒有訊息</p></div>'}
+      </div>
+      <div class="chat-input-row">
+        <input type="text" id="msgInput" placeholder="輸入訊息..." />
+        <button class="btn btn-primary" id="btnSend">發送</button>
+      </div>`;
+    const chatEl = document.getElementById('chatMessages');
+    if (chatEl) chatEl.scrollTop = chatEl.scrollHeight;
+
+    async function sendMsg() {
+      const input = document.getElementById('msgInput');
+      if (!input || !input.value.trim()) return;
       try {
-        await api('/reviews/', { method: 'POST', body: { exchange_request_id: ex.id, rating: result.rating, comment: result.comment } });
-        toast('評價成功', 'info');
-        exchangeDetailPage(el, params);
-      } catch (e) { toast(e.detail || '評價失敗', 'error'); }
+        const msg = await api('/messages/exchanges/' + ex.id, { method: 'POST', body: { content: input.value } });
+        msgs.push(msg);
+        input.value = '';
+        renderChat();
+      } catch (e) { toast(e.detail || '發送失敗', 'error'); }
     }
-  });
+    document.getElementById('btnSend').onclick = sendMsg;
+    document.getElementById('msgInput').onkeyup = (e) => { if (e.key === 'Enter') sendMsg(); };
+  }
+
+  function renderTabContent() {
+    if (tab === 'detail') renderDetail(); else renderChat();
+  }
+
+  // Initial HTML
+  el.innerHTML = `
+    <h1>交換詳情</h1>
+    <div class="profile-tabs" id="exTabs" data-active="detail">
+      <button class="btn btn-sm btn-tab" data-ex-tab="detail">詳情</button>
+      <button class="btn btn-sm btn-tab" data-ex-tab="chat">訊息${msgs.length ? ` (${msgs.length})` : ''}</button>
+    </div>
+    <div class="card" style="max-width:640px;margin:0 auto" id="exTabContent"></div>`;
+
+  document.querySelector('[data-ex-tab="detail"]').onclick = () => setTab('detail');
+  document.querySelector('[data-ex-tab="chat"]').onclick = () => setTab('chat');
+  renderTabContent();
+
+  // Poll for new messages while on this page
+  if (ex.status !== 'completed' && ex.status !== 'cancelled') {
+    poll = setInterval(async () => {
+      try {
+        const newMsgs = await api('/messages/exchanges/' + ex.id);
+        if (newMsgs.length !== msgs.length) { msgs.length = 0; msgs.push(...newMsgs); if (tab === 'chat') renderChat(); }
+      } catch {}
+    }, 10000);
+    el._poll = poll;
+  }
+
+  // If URL has #chat hash, open chat tab
+  if (location.hash.endsWith('#chat')) setTab('chat');
 }
 
 // ─── PAGE: Messages List ─────────────────────────────────────────
@@ -1415,7 +1479,7 @@ async function messagesPage(el) {
     <div style="margin-bottom:20px"><h1>訊息</h1></div>
     ${active.length
       ? active.map(ex => `
-        <a href="#/messages/${ex.id}" class="card" style="display:flex;justify-content:space-between;align-items:center;text-decoration:none;color:var(--text);margin-bottom:10px">
+        <a href="#/exchanges/${ex.id}" class="card" style="display:flex;justify-content:space-between;align-items:center;text-decoration:none;color:var(--text);margin-bottom:10px">
           <div>
             <strong>${escHtml(ex.to_item_title)}</strong>
             <span style="color:var(--text-secondary);margin-left:8px;font-size:0.85rem">${escHtml(ex.from_user_nickname)} ↔ ${escHtml(ex.to_user_nickname)}</span>
@@ -1426,65 +1490,9 @@ async function messagesPage(el) {
 }
 
 // ─── PAGE: Message Thread ────────────────────────────────────────
+// Redirect to exchange detail page (chat is now a tab there)
 async function messageThreadPage(el, params) {
-  const exchangeId = parseInt(params.exchangeId, 10);
-  if (!exchangeId || exchangeId < 1) {
-    el.innerHTML = '<div class="alert alert-error">無效的交換請求</div>';
-    return;
-  }
-  const [ex, msgs] = await Promise.all([
-    api('/exchanges/' + exchangeId),
-    api('/messages/exchanges/' + exchangeId),
-  ]);
-
-  function render() {
-    el.innerHTML = `
-      <div class="chat-container">
-        <div class="chat-header">
-          <a href="#/exchanges/${ex.id}">← 返回交換詳情</a>
-          <p style="margin-top:8px"><strong>${escHtml(ex.to_item_title)}</strong> <span style="color:var(--text-secondary)">· ${escHtml(ex.from_user_nickname)} ↔ ${escHtml(ex.to_user_nickname)}</span></p>
-        </div>
-        <div class="chat-messages" id="chatMessages">
-          ${msgs.length ? msgs.map(m => `
-            <div class="chat-msg ${m.sender_id === state.user?.id ? 'chat-msg-mine' : 'chat-msg-other'}">
-              <div class="chat-msg-sender">${escHtml(m.sender_nickname)}</div>
-              <div class="chat-msg-bubble">${escHtml(m.content)}</div>
-              <div class="chat-msg-time">${formatDateTime(m.created_at)}</div>
-            </div>`).join('') : '<div class="empty-state" style="padding:28px"><p>還沒有訊息</p></div>'}
-        </div>
-        <div class="chat-input-row">
-          <input type="text" id="msgInput" placeholder="輸入訊息..." />
-          <button class="btn btn-primary" id="btnSend">發送</button>
-        </div>
-      </div>`;
-    const chatEl = document.getElementById('chatMessages');
-    if (chatEl) chatEl.scrollTop = chatEl.scrollHeight;
-
-    document.getElementById('btnSend').onclick = sendMsg;
-    document.getElementById('msgInput').onkeyup = (e) => { if (e.key === 'Enter') sendMsg(); };
-  }
-
-  async function sendMsg() {
-    const input = document.getElementById('msgInput');
-    if (!input.value.trim()) return;
-    try {
-      const msg = await api('/messages/exchanges/' + exchangeId, { method: 'POST', body: { content: input.value } });
-      msgs.push(msg);
-      input.value = '';
-      render();
-    } catch (e) { toast(e.detail || '發送失敗', 'error'); }
-  }
-
-  render();
-
-  // Poll for new messages
-  const poll = setInterval(async () => {
-    try {
-      const newMsgs = await api('/messages/exchanges/' + exchangeId);
-      if (newMsgs.length !== msgs.length) { msgs.length = 0; msgs.push(...newMsgs); render(); }
-    } catch {}
-  }, 8000);
-  el._poll = poll;
+  location.hash = '#/exchanges/' + params.exchangeId;
 }
 
 // ─── PAGE: Favorites ─────────────────────────────────────────────
@@ -1563,7 +1571,7 @@ async function notificationsPage(el) {
         if (related && ['exchange_request','exchange_accepted','exchange_rejected','exchange_completed','cancel_requested','exchange_cancelled','cancel_rejected'].includes(type)) {
           location.hash = '#/exchanges/' + related;
         } else if (related && type === 'new_message') {
-          location.hash = '#/messages/' + related;
+          location.hash = '#/exchanges/' + related;
         } else if (['new_review','item_deleted'].includes(type)) {
           location.hash = '#/notice/' + nid;
         }

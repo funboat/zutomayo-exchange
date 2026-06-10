@@ -6,7 +6,6 @@ from sqlalchemy.orm import selectinload
 from app.models.message import Message
 from app.models.exchange_request import ExchangeRequest
 from app.models.user import User
-from app.services.notification_service import create_notification
 
 
 async def get_messages(db: AsyncSession, exchange_id: int, user_id: int):
@@ -65,11 +64,6 @@ async def send_message(db: AsyncSession, exchange_id: int, sender_id: int, conte
     await db.flush()
 
     sender = await db.get(User, sender_id)
-    to_item = await db.get(User, ex.to_item_id)  # We want item title but let's use exchange id
-    await create_notification(
-        db, receiver_id, "new_message",
-        f"{sender.nickname} 傳送了新訊息給你", ex.id
-    )
 
     return {
         "id": msg.id,
