@@ -1583,8 +1583,12 @@ async function userProfilePage(el, params) {
 
   function setActiveTab(t) {
     tab = t;
-    renderTabs();
-    renderTabContent();
+    // Delay DOM rebuild to next frame so mobile browsers finish
+    // their touch sequence before the touched button is destroyed
+    requestAnimationFrame(() => {
+      renderTabs();
+      renderTabContent();
+    });
   }
 
   function renderTabContent() {
