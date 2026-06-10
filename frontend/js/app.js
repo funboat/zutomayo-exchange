@@ -100,8 +100,9 @@ function showConfirm({ title, message, showReason = false, confirmText = '確認
   });
 }
 
-function showReview({ nickname, onSubmit }) {
+function showReview({ nickname }) {
   state._blockNav = true;
+  return new Promise(resolve => {
   let rating = 0;
   const overlay = document.createElement('div');
   overlay.className = 'confirm-overlay';
@@ -128,7 +129,7 @@ function showReview({ nickname, onSubmit }) {
   function close(result) {
     state._blockNav = false;
     overlay.remove();
-    if (result && onSubmit) onSubmit(result);
+    resolve(result);
   }
 
   overlay.querySelector('#reviewCancel').onclick = () => close(null);
@@ -153,6 +154,7 @@ function showReview({ nickname, onSubmit }) {
   overlay.querySelector('#reviewSubmit').onclick = () => {
     close({ rating, comment: document.getElementById('reviewComment').value.trim() });
   };
+  });
 }
 
 // ─── Router ──────────────────────────────────────────────────────
