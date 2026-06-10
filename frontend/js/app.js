@@ -1571,26 +1571,14 @@ async function userProfilePage(el, params) {
 
   let tab = 'items';
 
-  function render() {
-    el.innerHTML = `
-      <div class="card profile-header">
-        <div class="profile-info">
-          <div class="avatar-circle">${escHtml((profile.nickname || '?')[0])}</div>
-          <div>
-            <h1 style="margin-bottom:4px">${escHtml(profile.nickname)}</h1>
-            <div style="color:var(--text-secondary);font-size:0.9rem">
-              物品 ${profile.item_count} · 評價 ${profile.avg_rating ? profile.avg_rating + ' / 5' : '暫無'}
-            </div>
-            <div style="color:var(--text-muted);font-size:0.8rem;margin-top:4px">加入於 ${formatDate(profile.created_at)}</div>
-          </div>
-        </div>
-      </div>
-      <div class="profile-tabs">
-        <button class="btn btn-sm ${tab === 'items' ? 'btn-primary' : 'btn-ghost'}" id="tabItems">物品 (${profile.item_count})</button>
-        <button class="btn btn-sm ${tab === 'reviews' ? 'btn-primary' : 'btn-ghost'}" id="tabReviews">評價 (${reviews.total || 0})</button>
-      </div>
-      <div id="profileTabContent"></div>`;
+  function setActiveTab(t) {
+    tab = t;
+    document.getElementById('tabItems').className = `btn btn-sm ${tab === 'items' ? 'btn-primary' : 'btn-ghost'}`;
+    document.getElementById('tabReviews').className = `btn btn-sm ${tab === 'reviews' ? 'btn-primary' : 'btn-ghost'}`;
+    renderTabContent();
+  }
 
+  function renderTabContent() {
     const content = document.getElementById('profileTabContent');
     if (tab === 'items') {
       content.innerHTML = items.items.length
@@ -1609,11 +1597,30 @@ async function userProfilePage(el, params) {
           </div>`).join('')
         : '<div class="empty-state"><p>暫無評價</p></div>';
     }
-
-    document.getElementById('tabItems').onclick = () => { tab = 'items'; render(); };
-    document.getElementById('tabReviews').onclick = () => { tab = 'reviews'; render(); };
   }
-  render();
+
+  el.innerHTML = `
+    <div class="card profile-header">
+      <div class="profile-info">
+        <div class="avatar-circle">${escHtml((profile.nickname || '?')[0])}</div>
+        <div>
+          <h1 style="margin-bottom:4px">${escHtml(profile.nickname)}</h1>
+          <div style="color:var(--text-secondary);font-size:0.9rem">
+            物品 ${profile.item_count} · 評價 ${profile.avg_rating ? profile.avg_rating + ' / 5' : '暫無'}
+          </div>
+          <div style="color:var(--text-muted);font-size:0.8rem;margin-top:4px">加入於 ${formatDate(profile.created_at)}</div>
+        </div>
+      </div>
+    </div>
+    <div class="profile-tabs">
+      <button class="btn btn-sm btn-primary" id="tabItems">物品 (${profile.item_count})</button>
+      <button class="btn btn-sm btn-ghost" id="tabReviews">評價 (${reviews.total || 0})</button>
+    </div>
+    <div id="profileTabContent"></div>`;
+
+  document.getElementById('tabItems').onclick = () => setActiveTab('items');
+  document.getElementById('tabReviews').onclick = () => setActiveTab('reviews');
+  renderTabContent();
 }
 
 // ─── PAGE: Admin Invite Codes ────────────────────────────────────
