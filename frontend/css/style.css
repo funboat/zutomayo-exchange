@@ -69,7 +69,9 @@ h3 { font-size: 0.95rem; font-weight: 600; }
   background: var(--bg-card); color: var(--text); font-size: 0.9rem;
   font-family: var(--font); font-weight: 500; cursor: pointer;
   transition: all 0.2s ease; white-space: nowrap;
+  -webkit-tap-highlight-color: transparent; touch-action: manipulation;
 }
+.btn:active { background: var(--bg-card); }
 .btn:hover { background: var(--bg-card-hover); border-color: var(--border-light); }
 .btn:disabled { opacity: 0.4; cursor: not-allowed; pointer-events: none; }
 
@@ -78,6 +80,7 @@ h3 { font-size: 0.95rem; font-weight: 600; }
   color: #fff; border-color: transparent;
   box-shadow: var(--shadow-glow);
 }
+.btn-primary:active { background: linear-gradient(135deg, var(--accent-secondary), var(--accent)); color: #fff; }
 .btn-primary:hover { box-shadow: 0 0 32px rgba(217, 70, 239, 0.4); transform: translateY(-1px); }
 
 .btn-secondary {
@@ -89,6 +92,7 @@ h3 { font-size: 0.95rem; font-weight: 600; }
 .btn-danger:hover { background: rgba(248, 113, 113, 0.25); border-color: var(--danger); }
 
 .btn-ghost { background: transparent; border-color: transparent; color: var(--text-secondary); }
+.btn-ghost:active { background: transparent; color: var(--text-secondary); }
 .btn-ghost:hover { background: var(--bg-hover); color: var(--text); }
 
 .btn-sm { padding: 6px 16px; font-size: 0.82rem; }
