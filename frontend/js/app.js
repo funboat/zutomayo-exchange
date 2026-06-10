@@ -1571,18 +1571,19 @@ async function userProfilePage(el, params) {
 
   let tab = 'items';
 
+  function renderTabs() {
+    const tabsEl = document.querySelector('.profile-tabs');
+    if (!tabsEl) return;
+    tabsEl.innerHTML = `
+      <button class="btn btn-sm ${tab === 'items' ? 'btn-primary' : 'btn-ghost'}" id="tabItems">物品 (${profile.item_count})</button>
+      <button class="btn btn-sm ${tab === 'reviews' ? 'btn-primary' : 'btn-ghost'}" id="tabReviews">評價 (${reviews.total || 0})</button>`;
+    document.getElementById('tabItems').onclick = () => setActiveTab('items');
+    document.getElementById('tabReviews').onclick = () => setActiveTab('reviews');
+  }
+
   function setActiveTab(t) {
     tab = t;
-    const itemsBtn = document.getElementById('tabItems');
-    const reviewsBtn = document.getElementById('tabReviews');
-    if (!itemsBtn || !reviewsBtn) return;
-    // Remove both state classes first, then add the correct one
-    itemsBtn.classList.remove('btn-primary', 'btn-ghost');
-    itemsBtn.classList.add(tab === 'items' ? 'btn-primary' : 'btn-ghost');
-    reviewsBtn.classList.remove('btn-primary', 'btn-ghost');
-    reviewsBtn.classList.add(tab === 'reviews' ? 'btn-primary' : 'btn-ghost');
-    // Force synchronous repaint before content swap, so highlight is visible immediately
-    void itemsBtn.offsetWidth;
+    renderTabs();
     renderTabContent();
   }
 
@@ -1620,14 +1621,10 @@ async function userProfilePage(el, params) {
         </div>
       </div>
     </div>
-    <div class="profile-tabs">
-      <button class="btn btn-sm btn-primary" id="tabItems">物品 (${profile.item_count})</button>
-      <button class="btn btn-sm btn-ghost" id="tabReviews">評價 (${reviews.total || 0})</button>
-    </div>
+    <div class="profile-tabs"></div>
     <div id="profileTabContent"></div>`;
 
-  document.getElementById('tabItems').onclick = () => setActiveTab('items');
-  document.getElementById('tabReviews').onclick = () => setActiveTab('reviews');
+  renderTabs();
   renderTabContent();
 }
 
