@@ -1913,20 +1913,21 @@ window.addEventListener('load', async () => {
   loadCategories();
   navigate();
   // Poll unread counts
+  state.refreshUnread = async () => {
+    if (!state.user) return;
+    try {
+      const [n, m] = await Promise.all([
+        api('/notifications/unread-count').catch(() => ({ count: 0 })),
+        api('/messages/unread-count').catch(() => ({ count: 0 })),
+      ]);
+      state.unreadNotifications = n.count;
+      state.unreadMessages = m.count;
+      renderNav();
+    } catch {}
+  };
   if (state.user) {
-    const refreshUnread = async () => {
-      try {
-        const [n, m] = await Promise.all([
-          api('/notifications/unread-count').catch(() => ({ count: 0 })),
-          api('/messages/unread-count').catch(() => ({ count: 0 })),
-        ]);
-        state.unreadNotifications = n.count;
-        state.unreadMessages = m.count;
-        renderNav();
-      } catch {}
-    };
-    refreshUnread();
-    setInterval(refreshUnread, 30000);
+    state.refreshUnread();
+    setInterval(state.refreshUnread, 30000);
   }
 });
 
