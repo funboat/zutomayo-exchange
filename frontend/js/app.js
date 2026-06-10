@@ -195,6 +195,9 @@ async function navigate() {
   state._lastHash = location.hash;
   cleanupHome();
   const main = document.getElementById('mainContent');
+  // Clear any polling intervals from previous page (e.g. message thread)
+  if (main._poll) { clearInterval(main._poll); main._poll = null; }
+  if (main._timer) { clearTimeout(main._timer); main._timer = null; }
   main.classList.remove('home-content');
   const { handler, params } = matchRoute(location.hash);
   document.body.style.overflow = 'hidden';
