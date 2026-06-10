@@ -252,7 +252,7 @@ function categoryOptionsHtml(selectedKey) {
 }
 
 const modeLabels = { reach_out: '可伸手', swap: '需互換' };
-const statusLabels = { available: '可交換', reserved: '已預留', exchanged: '已交換', pending: '待確認', accepted: '已接受', rejected: '已拒絕', cancelled: '已取消', cancel_requested: '申請取消中', completed: '已完成' };const typeMap = { exchange_request: '交換請求', exchange_accepted: '已接受', exchange_rejected: '已拒絕', exchange_completed: '已完成', cancel_requested: '取消申請', exchange_cancelled: '已取消', cancel_rejected: '取消被拒', new_message: '新訊息', new_review: '新評價', item_deleted: '物品已刪除' };
+const statusLabels = { available: '可交換', reserved: '已預留', exchanged: '無庫存', pending: '待確認', accepted: '已接受', rejected: '已拒絕', cancelled: '已取消', cancel_requested: '申請取消中', completed: '已完成' };const typeMap = { exchange_request: '交換請求', exchange_accepted: '已接受', exchange_rejected: '已拒絕', exchange_completed: '已完成', cancel_requested: '取消申請', exchange_cancelled: '已取消', cancel_rejected: '取消被拒', new_message: '新訊息', new_review: '新評價', item_deleted: '物品已刪除' };
 
 function itemCard(item, exchangeState) {
   const img = item.images?.length
@@ -307,7 +307,7 @@ function filterBar(filters) {
         <option value="">全部狀態</option>
         <option value="available" ${filters.status === 'available' ? 'selected' : ''}>可交換</option>
         <option value="reserved" ${filters.status === 'reserved' ? 'selected' : ''}>已預留</option>
-        <option value="exchanged" ${filters.status === 'exchanged' ? 'selected' : ''}>已交換</option>
+        <option value="exchanged" ${filters.status === 'exchanged' ? 'selected' : ''}>無庫存</option>
       </select>
       <select id="filterMode">
         <option value="">全部模式</option>
