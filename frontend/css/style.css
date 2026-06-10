@@ -771,6 +771,7 @@ code { background: rgba(139, 92, 246, 0.1); padding: 3px 8px; border-radius: var
 }
 .confirm-card h3 { margin-bottom: 10px; font-size: 1.1rem; }
 .confirm-card p { color: var(--text-secondary); line-height: 1.6; }
+.review-star { transition: color 0.15s; cursor: pointer; user-select: none; }
 .confirm-card textarea {
   background: var(--bg); border: 1px solid var(--border);
   border-radius: var(--radius-sm); color: var(--text);

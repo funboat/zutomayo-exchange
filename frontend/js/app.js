@@ -100,6 +100,61 @@ function showConfirm({ title, message, showReason = false, confirmText = '確認
   });
 }
 
+function showReview({ nickname, onSubmit }) {
+  state._blockNav = true;
+  let rating = 0;
+  const overlay = document.createElement('div');
+  overlay.className = 'confirm-overlay';
+
+  function renderStars() {
+    return Array.from({ length: 5 }, (_, i) =>
+      `<span class="review-star" data-r="${i + 1}" style="font-size:2rem;cursor:pointer;color:${i < rating ? 'var(--accent)' : 'var(--border)'};transition:color 0.15s">★</span>`
+    ).join('');
+  }
+
+  overlay.innerHTML = `
+    <div class="confirm-card" style="text-align:center">
+      <h3>評價 ${escHtml(nickname)}</h3>
+      <div id="starRow" style="margin:16px 0">${renderStars()}</div>
+      <textarea id="reviewComment" placeholder="寫下你的評價..." style="width:100%;min-height:60px"></textarea>
+      <div class="confirm-actions" style="margin-top:14px">
+        <button class="btn btn-ghost" id="reviewCancel">取消</button>
+        <button class="btn btn-primary" id="reviewSubmit" disabled>提交評價</button>
+      </div>
+    </div>`;
+
+  document.body.appendChild(overlay);
+
+  function close(result) {
+    state._blockNav = false;
+    overlay.remove();
+    if (result && onSubmit) onSubmit(result);
+  }
+
+  overlay.querySelector('#reviewCancel').onclick = () => close(null);
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) close(null); });
+
+  overlay.querySelectorAll('.review-star').forEach(s => {
+    s.onmouseenter = () => {
+      const r = parseInt(s.dataset.r);
+      overlay.querySelectorAll('.review-star').forEach((ss, i) => {
+        ss.style.color = i < r ? 'var(--accent)' : 'var(--border)';
+      });
+    };
+    s.onclick = () => {
+      rating = parseInt(s.dataset.r);
+      document.getElementById('reviewSubmit').disabled = false;
+      overlay.querySelectorAll('.review-star').forEach((ss, i) => {
+        ss.style.color = i < rating ? 'var(--accent)' : 'var(--border)';
+      });
+    };
+  });
+
+  overlay.querySelector('#reviewSubmit').onclick = () => {
+    close({ rating, comment: document.getElementById('reviewComment').value.trim() });
+  };
+}
+
 // ─── Router ──────────────────────────────────────────────────────
 const routes = {};
 
@@ -1247,6 +1302,9 @@ async function exchangeDetailPage(el, params) {
     actions += `<button class="btn btn-primary" id="btnComplete">標記完成</button>`;
     actions += `<button class="btn btn-ghost" id="btnRequestCancel">提出取消</button>`;
   }
+  if (ex.status === 'completed') {
+    actions += `<button class="btn btn-primary" id="btnReview">評價</button>`;
+  }
   if (ex.status === 'cancel_requested') {
     const isRequester = ex.cancel_requested_by === state.user?.id;
     if (!isRequester) {
@@ -1305,6 +1363,17 @@ async function exchangeDetailPage(el, params) {
   });
   document.getElementById('btnApproveCancel')?.addEventListener('click', () => act('approve-cancel'));
   document.getElementById('btnRejectCancel')?.addEventListener('click', () => act('reject-cancel'));
+  document.getElementById('btnReview')?.addEventListener('click', async () => {
+    const targetNickname = isFrom ? ex.to_user_nickname : ex.from_user_nickname;
+    const result = await showReview({ nickname: targetNickname });
+    if (result) {
+      try {
+        await api('/reviews/', { method: 'POST', body: { exchange_request_id: ex.id, rating: result.rating, comment: result.comment } });
+        toast('評價成功', 'info');
+        exchangeDetailPage(el, params);
+      } catch (e) { toast(e.detail || '評價失敗', 'error'); }
+    }
+  });
 }
 
 // ─── PAGE: Messages List ─────────────────────────────────────────
