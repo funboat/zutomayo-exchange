@@ -1576,10 +1576,13 @@ async function userProfilePage(el, params) {
     const itemsBtn = document.getElementById('tabItems');
     const reviewsBtn = document.getElementById('tabReviews');
     if (!itemsBtn || !reviewsBtn) return;
-    itemsBtn.classList.toggle('btn-primary', tab === 'items');
-    itemsBtn.classList.toggle('btn-ghost', tab !== 'items');
-    reviewsBtn.classList.toggle('btn-primary', tab === 'reviews');
-    reviewsBtn.classList.toggle('btn-ghost', tab !== 'reviews');
+    // Remove both state classes first, then add the correct one
+    itemsBtn.classList.remove('btn-primary', 'btn-ghost');
+    itemsBtn.classList.add(tab === 'items' ? 'btn-primary' : 'btn-ghost');
+    reviewsBtn.classList.remove('btn-primary', 'btn-ghost');
+    reviewsBtn.classList.add(tab === 'reviews' ? 'btn-primary' : 'btn-ghost');
+    // Force synchronous repaint before content swap, so highlight is visible immediately
+    void itemsBtn.offsetWidth;
     renderTabContent();
   }
 
