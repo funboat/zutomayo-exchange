@@ -1004,7 +1004,7 @@ async function itemEditPage(el, params) {
       <form id="editForm" class="card" style="padding:24px">
         <div class="form-group"><label>標題</label><input type="text" id="itemTitle" required maxlength="200" value="${escHtml(item.title)}" /></div>
         <div class="form-group"><label>描述</label><textarea id="itemDesc">${escHtml(item.description || '')}</textarea></div>
-        <div class="form-group"><label>類別</label><select id="itemCat">${['cd','goods','poster','other'].map(c => `<option value="${c}" ${item.category === c ? 'selected' : ''}>${catLabels[c]}</option>`).join('')}</select></div>
+        <div class="form-group"><label>類別</label><select id="itemCat"><option value="cd" ${item.category==='cd'?'selected':''}>CD</option><option value="goods" ${item.category==='goods'?'selected':''}>周邊</option><option value="poster" ${item.category==='poster'?'selected':''}>海報</option><option value="other" ${item.category==='other'?'selected':''}>其他</option></select></div>
         <div class="form-group"><label>交換方式</label><select id="itemMode">
           <option value="swap" ${item.exchange_mode === 'swap' ? 'selected' : ''}>互換（需提供自己的物品）</option>
           <option value="reach_out" ${item.exchange_mode === 'reach_out' ? 'selected' : ''}>伸手（可直接索要）</option>
@@ -1738,6 +1738,7 @@ function initCustomSelects() {
 window.addEventListener('hashchange', navigate);
 window.addEventListener('load', async () => {
   await checkAuth();
+  loadCategories();
   navigate();
   // Poll unread counts
   if (state.user) {
