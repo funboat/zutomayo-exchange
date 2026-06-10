@@ -749,7 +749,7 @@ async function itemsBrowsePage(el, params) {
 
   async function load() {
     const q = new URLSearchParams({ page: filters.page, page_size: 20 });
-    if (filters.status) q.set('status', filters.status);
+    q.set('status', filters.status);
     if (filters.search) q.set('search', filters.search);
     if (filters.category) q.set('category', filters.category);
     if (filters.exchange_mode) q.set('exchange_mode', filters.exchange_mode);
